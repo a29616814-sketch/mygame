@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>射龍門 - 真實牌組模擬版</title>
+    <title>射龍門 - 徹底重製版</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <style>
@@ -18,7 +18,7 @@
         .board { background: radial-gradient(circle, #2d5a3c 0%, #1a472a 100%); padding: 30px; border-radius: 50px; border: 4px solid var(--gold); }
         .pool-display { font-size: 48px; color: #f1c40f; font-weight: bold; }
         .cards { display: flex; justify-content: center; gap: 15px; margin: 20px 0; height: 160px; }
-        .card { width: 100px; height: 145px; background: white; border-radius: 10px; color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 35px; font-weight: bold; border: 2px solid #333; box-shadow: 3px 3px 10px rgba(0,0,0,0.3); }
+        .card { width: 100px; height: 145px; background: white; border-radius: 10px; color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 35px; font-weight: bold; border: 2px solid #333; box-shadow: 3px 3px 10px rgba(0,0,0,0.3); white-space: pre-wrap; }
         .card.hidden { background: #2c3e50; color: transparent; border: 2px solid #7f8c8d; }
         .card.red { color: var(--card-red); }
         .setup-box { background: rgba(0,0,0,0.7); padding: 25px; border-radius: 20px; border: 1px solid var(--gold); margin-bottom: 20px; }
@@ -32,7 +32,7 @@
 <body>
 
 <div id="game-ui" class="game-container">
-    <h1>🏟️ 皇家射龍門 - 真實模擬版</h1>
+    <h1>🏟️ 皇家射龍門 - 徹底重製版</h1>
 
     <div id="setup-area" class="setup-box">
         <div id="login-part">
@@ -40,12 +40,13 @@
             <button onclick="joinRoom()">進入大廳</button>
         </div>
         <div id="host-part" style="display:none;">
-            <p>👑 房主設定 (重製規則)</p>
+            <p>👑 房主設定 (重製將清空目前所有進度)</p>
             初始本金: <input type="number" id="start-balance" value="1000" style="width:80px;">
             底注: <input type="number" id="entry-fee" value="100" style="width:70px;">
             牌數: <select id="deck-count"><option value="1">1 副牌</option><option value="2" selected>2 副牌</option><option value="4">4 副牌</option></select>
             倍率: <input type="number" id="hit-rate" value="2" style="width:50px;">
-            <button onclick="hostStartGame()">【全部重來】收錢開局</button>
+            <br>
+            <button onclick="hostStartGame()" style="background:#f39c12; color:white; font-size: 1.2rem; margin-top: 10px;">🔥 徹底重製・全新開局</button>
         </div>
     </div>
 
@@ -77,7 +78,7 @@
             
             <div id="host-controls" style="margin-top:20px; border-top:1px solid #666; padding-top:10px; display:none;">
                 <button id="deal-btn" onclick="drawGoalPost()" style="background: #2ecc71; color: white;">♠ 從牌堆發牌 ♣</button>
-                <button class="admin-btn" onclick="forceReset()">🚨 強制重置牌局</button>
+                <button class="admin-btn" onclick="forceReset()">🚨 強制重置牌局(不改金錢)</button>
             </div>
         </div>
         <p style="font-size: 14px; color: #ddd; margin-top:20px;">🎴 剩餘牌數: <span id="cards-left">0</span></p>
@@ -90,7 +91,6 @@
 </div>
 
 <script>
-    // --- 1. Firebase 配置 ---
     const firebaseConfig = {
         apiKey: "AIzaSyDzd-2ZUgrDM8K_85_qSOgpkWuWNzBUBL8",
         authDomain: "dargongatepoker.firebaseapp.com",
@@ -140,7 +140,6 @@
         });
     }
 
-    // --- 2. 模擬真實洗牌邏輯 ---
     function generateDecks(count) {
         let deck = [];
         const suits = ['♠', '♥', '♦', '♣'];
@@ -151,7 +150,6 @@
                 }
             });
         }
-        // Fisher-Yates Shuffle 洗牌演算法
         for (let i = deck.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -159,43 +157,49 @@
         return deck;
     }
 
+    // --- 關鍵重製函數 ---
     function hostStartGame() {
-        if(!confirm("這會重設所有人的金錢並清空池子，確定嗎？")) return;
+        if(!confirm("⚠️ 警告：這會清空池子、重洗牌、重設所有人餘額。確定嗎？")) return;
         const fee = parseInt(document.getElementById('entry-fee').value) || 100;
         const start = parseInt(document.getElementById('start-balance').value) || 1000;
         const decks = parseInt(document.getElementById('deck-count').value) || 1;
         
-        let updates = { 
-            gameStarted: true, 
-            deck: generateDecks(decks), 
-            pool: 0, 
-            entryFee: fee, 
+        let newPlayers = {};
+        let newPool = 0;
+        Object.keys(localData.players).forEach((id, idx) => {
+            newPlayers[id] = {
+                name: localData.players[id].name,
+                balance: start - fee,
+                status: 'player',
+                isHost: (idx === 0)
+            };
+            newPool += fee;
+        });
+
+        // 使用 set 直接覆蓋整個房間節點，保證舊數據(如舊池子、剩餘牌)消失
+        gameRef.set({
+            gameStarted: true,
+            deck: generateDecks(decks),
+            pool: newPool,
+            entryFee: fee,
             hitRate: parseInt(document.getElementById('hit-rate').value) || 2,
             deckCount: decks,
-            gameState: 'waiting_deal', 
-            statusMsg: "房主重新洗牌，遊戲重啟！" 
-        };
-
-        Object.keys(localData.players).forEach((id, idx) => {
-            updates[`players/${id}/balance`] = start - fee;
-            updates[`players/${id}/status`] = 'player';
-            updates.pool += fee;
-            if (idx === 0) updates.currentPlayerKey = id;
+            gameState: 'waiting_deal',
+            statusMsg: "🔄 房主重製了遊戲，全新開局！",
+            currentPlayerKey: Object.keys(newPlayers)[0],
+            players: newPlayers,
+            c1: null, c2: null, c3: null
         });
-        gameRef.update(updates);
     }
 
     function drawGoalPost() {
         let deck = localData.deck || [];
-        // 若剩餘牌數不足 3 張，自動補洗新牌
         if (deck.length < 3) {
-            alert("牌不夠了，自動洗入新牌組！");
+            alert("牌不夠了，重新洗牌！");
             deck = generateDecks(localData.deckCount || 2);
         }
-        
         const c1 = deck.pop(); 
         const c2 = deck.pop();
-        
         const pKeys = Object.keys(localData.players).filter(k => localData.players[k].status === 'player');
         let currentK = localData.currentPlayerKey;
         if (!pKeys.includes(currentK)) currentK = pKeys[0];
@@ -212,16 +216,15 @@
         let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
         const p = localData.players[myId];
         const hitRate = localData.hitRate || 2;
-        
         if (type !== 'fold' && (bet < 10 || bet % 10 !== 0 || bet > p.balance || bet > localData.pool)) return alert("金額無效");
 
         let deck = localData.deck || [];
         if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
         
-        const c3 = deck.pop(); // 從洗好的牌堆中抽出一張
+        const c3 = deck.pop();
         let nBal = p.balance, nPool = localData.pool, msg = "";
 
-        if (type === 'fold') msg = `${p.name} 放棄`;
+        if (type === 'fold') msg = `${p.name} 放棄射門`;
         else {
             const min = Math.min(localData.c1.val, localData.c2.val);
             const max = Math.max(localData.c1.val, localData.c2.val);
@@ -291,7 +294,7 @@
         if (amt && parseInt(amt) % 100 === 0) gameRef.child(`players/${id}`).update({ status: 'player', balance: parseInt(amt) });
     }
     function kick(id) { gameRef.child(`players/${id}`).remove(); }
-    function forceReset() { gameRef.update({ gameState: 'waiting_deal', statusMsg: "房主已重置牌局", c1: null, c2: null, c3: null }); }
+    function forceReset() { gameRef.update({ gameState: 'waiting_deal', statusMsg: "房主強制重置牌面", c1: null, c2: null, c3: null }); }
     function setAllIn() { document.getElementById('bet-amount').value = Math.min(localData.players[myId].balance, localData.pool); }
 </script>
 </body>
