@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>射龍門 Pro - 完整功能重製版</title>
+    <title>射龍門 Pro - 規則精確版</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <style>
@@ -22,12 +22,12 @@
         .card.hidden { background: #2c3e50; color: transparent; border: 2px solid #7f8c8d; }
         .card.red { color: var(--card-red); }
         .setup-box { background: rgba(0,0,0,0.7); padding: 25px; border-radius: 20px; border: 1px solid var(--gold); margin-bottom: 20px; }
-        .input-group { margin: 10px 0; }
-        input, select { padding: 10px; border-radius: 5px; border: none; text-align: center; font-size: 1rem; margin: 5px; }
+        .input-group { margin: 10px 0; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
+        input, select { padding: 10px; border-radius: 5px; border: none; text-align: center; font-size: 1rem; }
         button { padding: 10px 18px; cursor: pointer; background: var(--gold); border: none; font-weight: bold; border-radius: 6px; color: #1a472a; margin: 4px; transition: 0.2s; }
         button:hover { filter: brightness(1.2); }
         .admin-btn { background: #e74c3c !important; color: white !important; }
-        #status-msg { height: 40px; font-size: 1.2rem; color: #f1c40f; font-weight: bold; margin: 10px 0; }
+        #status-msg { height: 50px; font-size: 1.3rem; color: #f1c40f; font-weight: bold; margin: 10px 0; text-shadow: 1px 1px 2px black; }
     </style>
 </head>
 <body>
@@ -43,17 +43,17 @@
         <div id="host-part" style="display:none;">
             <h3>👑 房主設定面板</h3>
             <div class="input-group">
-                初始本金: <input type="number" id="start-balance" value="1000" style="width:80px;">
-                底注: <input type="number" id="entry-fee" value="100" style="width:70px;">
+                初始本金: <input type="number" id="start-balance" value="1000" style="width:100px;">
+                開局底注: <input type="number" id="entry-fee" value="100" style="width:80px;">
             </div>
             <div class="input-group">
+                棄牌投注: <input type="number" id="fold-penalty" value="20" style="width:80px;">
                 牌組數量: <select id="deck-count">
-                    <option value="1">1 副牌</option>
-                    <option value="2" selected>2 副牌</option>
-                    <option value="4">4 副牌</option>
+                    <option value="1">1 副牌</option><option value="2" selected>2 副牌</option>
+                    <option value="3">3 副牌</option><option value="4">4 副牌</option>
                 </select>
-                撞柱倍率: <input type="number" id="hit-rate" value="2" style="width:50px;">
             </div>
+            <p style="font-size: 0.8rem; color: #aaa;">撞柱: 普通 2 倍 / 同數字 3 倍 | 猜錯: 1 倍</p>
             <button onclick="hostStartGame()" style="background:#2ecc71; color:white; font-size: 1.2rem; width: 80%;">✅ 套用設定・開桌</button>
         </div>
     </div>
@@ -81,21 +81,16 @@
                     </div>
                 </div>
                 <button onclick="setAllIn()" style="background:var(--card-red); color:white;">ALL IN</button>
-                <button onclick="handleAction('fold')" style="background:#95a5a6;">放棄</button>
+                <button onclick="handleAction('fold')" style="background:#95a5a6;">放棄 (扣 $<span id="fold-cost-ui">0</span>)</button>
             </div>
             
             <div id="host-controls" style="margin-top:20px; border-top:1px solid #666; padding-top:10px; display:none;">
-                <button id="deal-btn" onclick="drawGoalPost()" style="background: #2ecc71; color: white;">♠ 發牌 ♣</button>
-                <button class="admin-btn" onclick="hostResetToLobby()">🚨 徹底重製並重設規則</button>
+                <button id="deal-btn" onclick="drawGoalPost()" style="background: #2ecc71; color: white;">♠ 立即發牌 ♣</button>
+                <button class="admin-btn" onclick="hostResetToLobby()">🚨 徹底重製</button>
             </div>
         </div>
         <p style="font-size: 14px; color: #ddd; margin-top:20px;">🎴 剩餘牌數: <span id="cards-left">0</span></p>
     </div>
-</div>
-
-<div id="kicked-screen" style="display:none; padding:100px;">
-    <h1>🚫 離開房間</h1>
-    <button onclick="location.reload()">重新進入</button>
 </div>
 
 <script>
@@ -131,25 +126,20 @@
     function startListening() {
         gameRef.on('value', snap => {
             localData = snap.val() || {};
-            if (!localData.players || !localData.players[myId]) {
-                if (myId) document.getElementById('kicked-screen').style.display = 'block';
-                return;
-            }
+            if (!localData.players || !localData.players[myId]) return;
             const pKeys = Object.keys(localData.players);
             isHost = (pKeys[0] === myId);
             
-            // UI 切換邏輯
             if (localData.gameStarted) {
                 document.getElementById('setup-area').style.display = 'none';
                 document.getElementById('main-board').style.display = 'block';
+                document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 0;
                 renderUI();
             } else {
                 document.getElementById('setup-area').style.display = 'block';
                 document.getElementById('host-part').style.display = isHost ? 'block' : 'none';
                 document.getElementById('main-board').style.display = 'none';
-                if (!isHost) document.getElementById('status-msg').innerText = "等待房主設定...";
             }
-            
             document.getElementById('host-controls').style.display = isHost ? 'block' : 'none';
             renderPlayers();
         });
@@ -172,24 +162,18 @@
         return deck;
     }
 
-    // --- 徹底重製，回歸初始畫面 ---
     async function hostResetToLobby() {
-        if(!confirm("確定要重製並回歸設定頁面嗎？這會中斷目前牌局。")) return;
-        try {
-            await gameRef.update({ 
-                gameStarted: false, // 關鍵：設為 false 讓 UI 切換
-                c1: null, c2: null, c3: null,
-                pool: 0,
-                statusMsg: "房主正在重設規則..."
-            });
-        } catch (e) { alert("操作失敗"); }
+        if(!confirm("確定要重製並重新設定規則嗎？")) return;
+        await gameRef.update({ gameStarted: false, pool: 0, statusMsg: "重新設定中..." });
     }
 
     async function hostStartGame() {
-        const fee = parseInt(document.getElementById('entry-fee').value) || 100;
+        const fee = parseInt(document.getElementById('entry-fee').value) || 0;
         const start = parseInt(document.getElementById('start-balance').value) || 1000;
+        const penalty = parseInt(document.getElementById('fold-penalty').value) || 0;
         const decks = parseInt(document.getElementById('deck-count').value) || 2;
-        const rate = parseInt(document.getElementById('hit-rate').value) || 2;
+
+        if (penalty % 10 !== 0 || fee % 10 !== 0) return alert("金額必須為 10 的倍數");
 
         let playersSnapshot = localData.players || {};
         let newPlayers = {};
@@ -210,10 +194,10 @@
             deck: generateDecks(decks),
             pool: newPool,
             entryFee: fee,
-            hitRate: rate,
+            foldPenalty: penalty,
             deckCount: decks,
             gameState: 'waiting_deal',
-            statusMsg: "全新局面！請房主發牌。",
+            statusMsg: "開局！請房主發牌。",
             currentPlayerKey: Object.keys(newPlayers)[0],
             players: newPlayers,
             c1: null, c2: null, c3: null
@@ -226,8 +210,7 @@
             alert("牌不夠了，重新洗牌！");
             deck = generateDecks(localData.deckCount || 2);
         }
-        const c1 = deck.pop(); 
-        const c2 = deck.pop();
+        const c1 = deck.pop(); const c2 = deck.pop();
         const pKeys = Object.keys(localData.players).filter(k => localData.players[k].status === 'player');
         let currentK = localData.currentPlayerKey;
         if (!pKeys.includes(currentK)) currentK = pKeys[0];
@@ -236,24 +219,25 @@
             deck: deck, c1: c1, c2: c2, c3: null,
             gameState: 'waiting_shoot',
             currentPlayerKey: currentK,
-            statusMsg: `輪到 【${localData.players[currentK].name}】`
+            statusMsg: `輪到 【${localData.players[currentK].name}】 下注`
         });
     }
 
-    // --- 放棄直接跳過，不抽牌 ---
     function handleAction(type) {
         let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
         const p = localData.players[myId];
-        const hitRate = localData.hitRate || 2;
-        if (type !== 'fold' && (bet < 10 || bet % 10 !== 0 || bet > p.balance || bet > localData.pool)) return alert("金額無效");
+        const penalty = localData.foldPenalty || 0;
+        
+        if (type !== 'fold' && (bet < 10 || bet % 10 !== 0 || bet > p.balance || bet > localData.pool)) return alert("下注金額無效");
 
         let deck = localData.deck || [];
         let nBal = p.balance, nPool = localData.pool, msg = "";
         let c3 = null;
 
         if (type === 'fold') {
-            msg = `${p.name} 已放棄，換下一位。`;
-            // 這裡不寫 deck.pop()
+            nBal -= penalty;
+            nPool += penalty;
+            msg = `${p.name} 放棄射門，扣除投注 $${penalty}`;
         } else {
             if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
             c3 = deck.pop();
@@ -261,13 +245,23 @@
             const max = Math.max(localData.c1.val, localData.c2.val);
             
             if (localData.c1.val === localData.c2.val) {
-                if (c3.val === localData.c1.val) { nBal -= bet*3; nPool += bet*3; msg = "💥 三倍撞柱！慘！"; }
-                else if ((type === 'up' && c3.val > localData.c1.val) || (type === 'down' && c3.val < localData.c1.val)) { nBal += bet; nPool -= bet; msg = "🎉 猜對了！"; }
-                else { nBal -= bet; nPool += bet; msg = "❌ 猜錯了。"; }
+                // 同數字邏輯修正
+                if (c3.val === localData.c1.val) { 
+                    nBal -= (bet * 3); nPool += (bet * 3); msg = `🚧 撞柱！輸 $${bet*3}`; 
+                } else if ((type === 'up' && c3.val > localData.c1.val) || (type === 'down' && c3.val < localData.c1.val)) { 
+                    nBal += bet; nPool -= bet; msg = `🎉 猜對！贏 $${bet}`; 
+                } else { 
+                    nBal -= bet; nPool += bet; msg = `❌ 猜錯！輸 $${bet}`; 
+                }
             } else {
-                if (c3.val > min && c3.val < max) { nBal += bet; nPool -= bet; msg = "🎉 射進！"; }
-                else if (c3.val === min || c3.val === max) { nBal -= bet*hitRate; nPool += bet*hitRate; msg = `🚧 撞柱罰${hitRate}倍！`; }
-                else { nBal -= bet; nPool += bet; msg = "❌ 沒進。"; }
+                // 普通射門
+                if (c3.val > min && c3.val < max) { 
+                    nBal += bet; nPool -= bet; msg = `🎉 射進！贏 $${bet}`; 
+                } else if (c3.val === min || c3.val === max) { 
+                    nBal -= (bet * 2); nPool += (bet * 2); msg = `🚧 撞柱！輸 $${bet*2}`; 
+                } else { 
+                    nBal -= bet; nPool += bet; msg = `❌ 沒進！輸 $${bet}`; 
+                }
             }
         }
 
@@ -282,7 +276,7 @@
                 if (b >= localData.entryFee) { updates[`players/${k}/balance`] = b - localData.entryFee; updates.pool += localData.entryFee; }
                 else updates[`players/${k}/status`] = 'spectator';
             });
-            updates.statusMsg = "💸 池子空了，全員自動收底！";
+            updates.statusMsg = msg + " | 💸 池子空了，全員自動收底！";
         }
         gameRef.update(updates);
         document.getElementById('bet-amount').value = "";
@@ -310,9 +304,7 @@
             const p = localData.players[id];
             const div = document.createElement('div');
             div.className = `player-card ${id === localData.currentPlayerKey ? 'active' : ''} ${p.status === 'spectator' ? 'is-spectator' : ''}`;
-            div.innerHTML = `<b>${p.name}</b><br><span class="player-balance">$${p.balance}</span><br>
-                ${isHost && id !== myId ? `<button onclick="kick('${id}')" style="background:red;color:white;padding:2px">踢</button>` : ''}
-                ${isHost && p.status === 'spectator' ? `<button onclick="approve('${id}')" style="background:green;color:white;padding:2px">准入</button>` : ''}`;
+            div.innerHTML = `<b>${p.name}</b><br><span class="player-balance">$${p.balance}</span>`;
             area.appendChild(div);
         });
     }
@@ -322,11 +314,6 @@
         if (!c) { el.classList.add('hidden'); el.innerText = '?'; }
         else { el.classList.remove('hidden'); el.innerText = `${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit === '♥' || c.suit === '♦'); }
     }
-    function approve(id) { 
-        let amt = prompt("起始金額:", "1000");
-        if (amt && parseInt(amt) % 100 === 0) gameRef.child(`players/${id}`).update({ status: 'player', balance: parseInt(amt) });
-    }
-    function kick(id) { gameRef.child(`players/${id}`).remove(); }
     function setAllIn() { document.getElementById('bet-amount').value = Math.min(localData.players[myId].balance, localData.pool); }
 </script>
 </body>
