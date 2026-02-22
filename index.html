@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>射龍門 Pro - 規則精確版</title>
+    <title>射龍門 Pro - 旗艦版</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <style>
@@ -23,17 +23,18 @@
         .card.red { color: var(--card-red); }
         .setup-box { background: rgba(0,0,0,0.7); padding: 25px; border-radius: 20px; border: 1px solid var(--gold); margin-bottom: 20px; }
         .input-group { margin: 10px 0; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
-        input, select { padding: 10px; border-radius: 5px; border: none; text-align: center; font-size: 1rem; }
+        input[type="number"], select { padding: 10px; border-radius: 5px; border: none; text-align: center; font-size: 1rem; }
         button { padding: 10px 18px; cursor: pointer; background: var(--gold); border: none; font-weight: bold; border-radius: 6px; color: #1a472a; margin: 4px; transition: 0.2s; }
         button:hover { filter: brightness(1.2); }
         .admin-btn { background: #e74c3c !important; color: white !important; }
         #status-msg { height: 50px; font-size: 1.3rem; color: #f1c40f; font-weight: bold; margin: 10px 0; text-shadow: 1px 1px 2px black; }
+        .toggle-label { font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 5px; }
     </style>
 </head>
 <body>
 
 <div id="game-ui" class="game-container">
-    <h1>🏟️ 皇家射龍門 Pro</h1>
+    <h1>🏟️ 皇家射龍門 Pro 旗艦版</h1>
 
     <div id="setup-area" class="setup-box">
         <div id="login-part">
@@ -53,14 +54,283 @@
                     <option value="3">3 副牌</option><option value="4">4 副牌</option>
                 </select>
             </div>
-            <p style="font-size: 0.8rem; color: #aaa;">撞柱: 普通 2 倍 / 同數字 3 倍 | 猜錯: 1 倍</p>
-            <button onclick="hostStartGame()" style="background:#2ecc71; color:white; font-size: 1.2rem; width: 80%;">✅ 套用設定・開桌</button>
+            <div class="input-group">
+                <label class="toggle-label">
+                    <input type="checkbox" id="auto-refill" checked> 池金不足自動補底 (底注 × 人數)
+                </label>
+            </div>
+            <button onclick="hostStartGame()" style="background:#2ecc71; color:white; font-size: 1.2rem; width: 80%;">✅ 開桌</button>
         </div>
     </div>
 
     <div id="player-area" class="player-list"></div>
 
     <div id="main-board" class="board" style="display:none;">
+        <div class="pool-display">💰 $<span id="pool-val">0</span></div>
+        <div id="status-msg">等待發牌...</div>
+
+        <div class="cards">
+            <div id="c1" class="card hidden">?</div>
+            <div id="c3" class="card hidden">?</div>
+            <div id="c2" class="card hidden">?</div>
+        </div>
+
+        <div id="controls">
+            <div id="bet-controls" style="display:none;">
+                <input type="number" id="bet-amount" placeholder="下注金額" min="10" step="10" style="width:140px;">
+                <div id="action-buttons" style="display:inline-block;">
+                    <button id="shoot-normal" onclick="handleAction('shoot')">射門！</button>
+                    <div id="guess-buttons" style="display:none;">
+                        <button onclick="handleAction('up')" style="background:#3498db; color:white;">猜大</button>
+                        <button onclick="handleAction('down')" style="background:#e67e22; color:white;">猜小</button>
+                    </div>
+                </div>
+                <button onclick="setAllIn()" style="background:var(--card-red); color:white;">ALL IN</button>
+                <button onclick="handleAction('fold')" style="background:#95a5a6;">放棄 (扣 $<span id="fold-cost-ui">0</span>)</button>
+            </div>
+            
+            <div id="host-controls" style="margin-top:20px; border-top:1px solid #666; padding-top:10px; display:none;">
+                <button id="deal-btn" onclick="drawGoalPost()" style="background: #2ecc71; color: white;">♠ 立即發牌 ♣</button>
+                <button class="admin-btn" onclick="hostResetToLobby()">🚨 徹底重製</button>
+            </div>
+        </div>
+        <p style="font-size: 14px; color: #ddd; margin-top:20px;">🎴 剩餘牌數: <span id="cards-left">0</span></p>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDzd-2ZUgrDM8K_85_qSOgpkWuWNzBUBL8",
+        authDomain: "dargongatepoker.firebaseapp.com",
+        databaseURL: "https://dargongatepoker-default-rtdb.firebaseio.com",
+        projectId: "dargongatepoker",
+        storageBucket: "dargongatepoker.firebasestorage.app",
+        messagingSenderId: "204663560828",
+        appId: "1:204663560828:web:9ede7b6190babde73f07f9"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const gameRef = db.ref('dragonGate/room1');
+
+    let myId = "", myName = "", isHost = false, localData = {};
+    const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
+
+    function joinRoom() {
+        myName = document.getElementById('my-name').value.trim();
+        if (!myName) return alert("請輸入暱稱");
+        const newRef = gameRef.child('players').push();
+        myId = newRef.key;
+        newRef.onDisconnect().remove();
+        newRef.set({ name: myName, balance: 0, status: 'spectator', isHost: false }).then(() => {
+            document.getElementById('login-part').style.display = 'none';
+            startListening();
+        });
+    }
+
+    function startListening() {
+        gameRef.on('value', snap => {
+            localData = snap.val() || {};
+            if (!localData.players || !localData.players[myId]) return;
+            const pKeys = Object.keys(localData.players);
+            isHost = (pKeys[0] === myId);
+            
+            if (localData.gameStarted) {
+                document.getElementById('setup-area').style.display = 'none';
+                document.getElementById('main-board').style.display = 'block';
+                document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 0;
+                renderUI();
+            } else {
+                document.getElementById('setup-area').style.display = 'block';
+                document.getElementById('host-part').style.display = isHost ? 'block' : 'none';
+                document.getElementById('main-board').style.display = 'none';
+            }
+            document.getElementById('host-controls').style.display = isHost ? 'block' : 'none';
+            renderPlayers();
+        });
+    }
+
+    function generateDecks(count) {
+        let deck = [];
+        const suits = ['♠', '♥', '♦', '♣'];
+        for (let i = 0; i < count; i++) {
+            suits.forEach(suit => {
+                for (let v = 1; v <= 13; v++) {
+                    deck.push({ val: v, suit: suit, label: labels[v] || v });
+                }
+            });
+        }
+        for (let i = deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+        return deck;
+    }
+
+    async function hostResetToLobby() {
+        if(!confirm("確定要重製嗎？")) return;
+        await gameRef.update({ gameStarted: false, pool: 0 });
+    }
+
+    async function hostStartGame() {
+        const fee = parseInt(document.getElementById('entry-fee').value) || 0;
+        const start = parseInt(document.getElementById('start-balance').value) || 1000;
+        const penalty = parseInt(document.getElementById('fold-penalty').value) || 0;
+        const decks = parseInt(document.getElementById('deck-count').value) || 2;
+        const refill = document.getElementById('auto-refill').checked;
+
+        let playersSnapshot = localData.players || {};
+        let newPlayers = {};
+        let newPool = 0;
+
+        Object.keys(playersSnapshot).forEach((id, idx) => {
+            newPlayers[id] = {
+                name: playersSnapshot[id].name,
+                balance: start - fee,
+                status: 'player',
+                isHost: (idx === 0)
+            };
+            newPool += fee;
+        });
+
+        await gameRef.set({
+            gameStarted: true,
+            deck: generateDecks(decks),
+            pool: newPool,
+            entryFee: fee,
+            foldPenalty: penalty,
+            autoRefill: refill,
+            deckCount: decks,
+            gameState: 'waiting_deal',
+            statusMsg: "開局！請房主發牌。",
+            currentPlayerKey: Object.keys(newPlayers)[0],
+            players: newPlayers,
+            c1: null, c2: null, c3: null
+        });
+    }
+
+    function drawGoalPost() {
+        let deck = localData.deck || [];
+        if (deck.length < 3) {
+            alert("重新洗牌！");
+            deck = generateDecks(localData.deckCount || 2);
+        }
+        const c1 = deck.pop(); const c2 = deck.pop();
+        const pKeys = Object.keys(localData.players).filter(k => localData.players[k].status === 'player');
+        let currentK = localData.currentPlayerKey;
+        if (!pKeys.includes(currentK)) currentK = pKeys[0];
+
+        gameRef.update({
+            deck: deck, c1: c1, c2: c2, c3: null,
+            gameState: 'waiting_shoot',
+            currentPlayerKey: currentK,
+            statusMsg: `輪到 【${localData.players[currentK].name}】`
+        });
+    }
+
+    function handleAction(type) {
+        let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
+        const p = localData.players[myId];
+        const penalty = localData.foldPenalty || 0;
+        if (type !== 'fold' && (bet < 10 || bet > p.balance || bet > localData.pool)) return alert("下注無效");
+
+        let deck = localData.deck || [];
+        let nBal = p.balance, nPool = localData.pool, msg = "";
+        let c3 = null;
+
+        if (type === 'fold') {
+            nBal -= penalty; nPool += penalty;
+            msg = `${p.name} 放棄 (-$${penalty})`;
+        } else {
+            if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
+            c3 = deck.pop();
+            const min = Math.min(localData.c1.val, localData.c2.val);
+            const max = Math.max(localData.c1.val, localData.c2.val);
+            if (localData.c1.val === localData.c2.val) {
+                if (c3.val === localData.c1.val) { nBal -= (bet * 3); nPool += (bet * 3); msg = `🚧 撞柱！輸 $${bet*3}`; }
+                else if ((type === 'up' && c3.val > localData.c1.val) || (type === 'down' && c3.val < localData.c1.val)) { nBal += bet; nPool -= bet; msg = `🎉 猜對！贏 $${bet}`; }
+                else { nBal -= bet; nPool += bet; msg = `❌ 猜錯！輸 $${bet}`; }
+            } else {
+                if (c3.val > min && c3.val < max) { nBal += bet; nPool -= bet; msg = `🎉 射進！贏 $${bet}`; }
+                else if (c3.val === min || c3.val === max) { nBal -= (bet * 2); nPool += (bet * 2); msg = `🚧 撞柱！輸 $${bet*2}`; }
+                else { nBal -= bet; nPool += bet; msg = `❌ 沒進！輸 $${bet}`; }
+            }
+        }
+
+        const pKeys = Object.keys(localData.players).filter(k => localData.players[k].status === 'player');
+        let nextK = pKeys[(pKeys.indexOf(myId) + 1) % pKeys.length];
+        let updates = { [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: (c3 || null), statusMsg: msg, gameState: 'waiting_deal', currentPlayerKey: nextK };
+        
+        // --- 補底邏輯修正 ---
+        const activePlayers = Object.keys(localData.players).filter(k => localData.players[k].status === 'player');
+        const threshold = localData.entryFee * activePlayers.length;
+
+        if (nPool < threshold && localData.autoRefill) {
+            updates.pool = nPool;
+            activePlayers.forEach(k => {
+                let currentBal = (k === myId ? nBal : localData.players[k].balance);
+                if (currentBal >= localData.entryFee) {
+                    updates[`players/${k}/balance`] = currentBal - localData.entryFee;
+                    updates.pool += localData.entryFee;
+                } else {
+                    updates[`players/${k}/status`] = 'spectator';
+                }
+            });
+            updates.statusMsg = msg + " | 💰 池金不足，全員自動補底！";
+        } else if (nPool <= 0 && !localData.autoRefill) {
+            // 原本的邏輯：沒勾自動補底且池子乾了才強制收底
+            updates.pool = 0;
+            activePlayers.forEach(k => {
+                let currentBal = (k === myId ? nBal : localData.players[k].balance);
+                if (currentBal >= localData.entryFee) {
+                    updates[`players/${k}/balance`] = currentBal - localData.entryFee;
+                    updates.pool += localData.entryFee;
+                } else {
+                    updates[`players/${k}/status`] = 'spectator';
+                }
+            });
+            updates.statusMsg = msg + " | 💸 池子空了，強制收底！";
+        }
+
+        gameRef.update(updates);
+        document.getElementById('bet-amount').value = "";
+    }
+
+    function renderUI() {
+        document.getElementById('pool-val').innerText = localData.pool || 0;
+        document.getElementById('status-msg').innerText = localData.statusMsg || "";
+        document.getElementById('cards-left').innerText = localData.deck ? localData.deck.length : 0;
+        updateCard('c1', localData.c1); updateCard('c2', localData.c2); updateCard('c3', localData.c3);
+        const isTurn = (localData.currentPlayerKey === myId);
+        const isShoot = (localData.gameState === 'waiting_shoot');
+        const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
+        const isConsec = localData.c1 && localData.c2 && Math.abs(localData.c1.val - localData.c2.val) === 1;
+        document.getElementById('bet-controls').style.display = (isTurn && isShoot) ? 'block' : 'none';
+        document.getElementById('shoot-normal').style.display = (isSame || isConsec) ? 'none' : 'inline-block';
+        document.getElementById('guess-buttons').style.display = isSame ? 'inline-block' : 'none';
+        document.getElementById('deal-btn').style.display = (isHost && localData.gameState === 'waiting_deal') ? 'inline-block' : 'none';
+    }
+
+    function renderPlayers() {
+        const area = document.getElementById('player-area'); area.innerHTML = '';
+        Object.keys(localData.players).forEach(id => {
+            const p = localData.players[id];
+            const div = document.createElement('div');
+            div.className = `player-card ${id === localData.currentPlayerKey ? 'active' : ''} ${p.status === 'spectator' ? 'is-spectator' : ''}`;
+            div.innerHTML = `<b>${p.name}</b><br><span class="player-balance">$${p.balance}</span>`;
+            area.appendChild(div);
+        });
+    }
+
+    function updateCard(id, c) {
+        const el = document.getElementById(id);
+        if (!c) { el.classList.add('hidden'); el.innerText = '?'; }
+        else { el.classList.remove('hidden'); el.innerText = `${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit === '♥' || c.suit === '♦'); }
+    }
+    function setAllIn() { document.getElementById('bet-amount').value = Math.min(localData.players[myId].balance, localData.pool); }
+</script>
+</body>
+</html>    <div id="main-board" class="board" style="display:none;">
         <div class="pool-display">💰 $<span id="pool-val">0</span></div>
         <div id="status-msg">等待發牌...</div>
 
@@ -318,3 +588,4 @@
 </script>
 </body>
 </html>
+
