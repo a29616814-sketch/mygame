@@ -44,7 +44,7 @@
 </div>
 
 <div class="game-container">
-    <h1>🏟️ 皇家射龍門 Pro 旗艦版</h1>
+    <h1>🏟️ 埔墘金龍門 Pro 旗艦版</h1>
     <div id="setup-area" class="setup-box">
         <div id="login-part">
             <input type="text" id="my-name" placeholder="輸入暱稱">
@@ -232,7 +232,7 @@
     }
 
     function setAllIn() {
-        if (confirm("🔥 確定要孤注一擲嗎？(所有人將看到特效)")) {
+        if (confirm("🔥 確定要ALL IN嗎？")) {
             gameRef.update({ allInTrigger: Date.now().toString() });
             document.getElementById('bet-amount').value = localData.pool;
         }
@@ -316,3 +316,4 @@
 </script>
 </body>
 </html>
+
