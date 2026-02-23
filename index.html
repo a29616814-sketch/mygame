@@ -32,15 +32,16 @@
         .kick-btn { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; border: 2px solid white; display: none; font-weight: bold; line-height: 18px; }
         .is-host .kick-btn { display: block; }
 
-        /* 特效層修改：GIF 改 YouTube */
-        #all-in-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
+        /* 特效層優化：確保影片居中且不顯示多餘按鈕 */
+        #all-in-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
+        #video-box { overflow: hidden; border-radius: 20px; box-shadow: 0 0 30px var(--gold); }
     </style>
 </head>
 <body>
 
 <div id="all-in-overlay">
     <div id="video-box"></div>
-    <h1 style="color:var(--gold); margin-top: 20px;">我要全部！！！</h1>
+    <h1 style="color:var(--gold); margin-top: 20px; text-shadow: 0 0 10px black;">我要全部！！！</h1>
 </div>
 
 <div class="game-container">
@@ -118,7 +119,7 @@
 
     let myId = localStorage.getItem('dg_id') || "";
     let localData = {};
-    let lastEffectId = ""; // 用來追蹤特效是否真的「更新」
+    let lastEffectId = "";
     const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
 
     function joinRoom() {
@@ -130,14 +131,11 @@
             localStorage.setItem('dg_id', myId);
         }
         gameRef.child('players/'+myId).update({ name: nameInput, lastActive: Date.now() });
-        
-        // 修改點 2：加入監聽前，先獲取當前資料，避免一進場就觸發舊特效
         gameRef.once('value', snap => {
             const d = snap.val();
             if(d && d.allInTrigger) lastEffectId = d.allInTrigger; 
             startListening();
         });
-
         document.getElementById('login-part').style.display = 'none';
     }
 
@@ -149,15 +147,16 @@
             const isHost = (pKeys[0] === myId);
             document.body.className = isHost ? "is-host" : "";
 
-            // 修改點 3：修正特效顯示邏輯
+            // --- 修改點：影片參數優化 & 時間改為 25-27 ---
             if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
                 const videoBox = document.getElementById('video-box');
-                videoBox.innerHTML = `<iframe width="478" height="849" src="https://www.youtube.com/embed/GtyYndoTyV8?start=23&end=25&autoplay=1&mute=0" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
+                // controls=0 (隱藏控制條), modestbranding=1 (減少Logo), iv_load_policy=3 (隱藏註解)
+                videoBox.innerHTML = `<iframe width="315" height="560" src="https://www.youtube.com/embed/GtyYndoTyV8?start=25&end=27&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
                 document.getElementById('all-in-overlay').style.display = 'flex';
                 setTimeout(() => { 
                     document.getElementById('all-in-overlay').style.display = 'none'; 
-                    videoBox.innerHTML = ''; // 播放完清空
-                }, 4000);
+                    videoBox.innerHTML = ''; 
+                }, 3500); // 稍微延長一點顯示時間確保完整播放 2 秒
                 lastEffectId = localData.allInTrigger;
             }
 
@@ -175,6 +174,8 @@
             renderPlayers(isHost);
         });
     }
+
+    // (其餘 renderPlayers, kickPlayer, hostStartGame, drawGoalPost, setAllIn, handleAction, renderUI, updateCard, generateDecks 函數均與原本完全相同，不予變動)
 
     function renderPlayers(isHost) {
         const area = document.getElementById('player-area'); area.innerHTML = '';
@@ -240,17 +241,13 @@
 
     function handleAction(type) {
         let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
-        
-        // 修改點 4：加回 10 倍數判斷
         if (type !== 'fold') {
             if (bet < 1 || bet > localData.pool) return alert("下注金額無效");
             if (bet % 10 !== 0) return alert("下注金額必須是 10 的倍數");
         }
-        
         let p = localData.players[myId];
         let nBal = p.balance, nPool = localData.pool, msg = "", c3 = null;
         let deck = localData.deck || [];
-
         if (type === 'fold') {
             const penalty = localData.foldPenalty || 0;
             nBal -= penalty; nPool += penalty;
@@ -270,7 +267,6 @@
                 else { nBal -= bet; nPool += bet; msg = `❌ 沒進！輸 $${bet}`; }
             }
         }
-
         const pKeys = Object.keys(localData.players);
         let nextK = pKeys[(pKeys.indexOf(myId) + 1) % pKeys.length];
         let updates = { [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null, statusMsg: msg, gameState: 'waiting_deal', currentPlayerKey: nextK };
@@ -316,4 +312,3 @@
 </script>
 </body>
 </html>
-
