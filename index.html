@@ -14,7 +14,7 @@
         .player-card { background: rgba(0,0,0,0.8); padding: 12px; border-radius: 12px; border: 2px solid #444; width: 130px; position: relative; }
         .player-card.active { border-color: var(--gold); box-shadow: 0 0 15px var(--gold); background: rgba(212, 175, 55, 0.1); }
         .player-balance { color: #2ecc71; font-weight: bold; font-family: monospace; font-size: 1.1rem; }
-        .balance-neg { color: #ff7675 !important; } /* 支援負數顯示 */
+        .balance-neg { color: #ff7675 !important; }
         .board { background: radial-gradient(circle, #2d5a3c 0%, #1a472a 100%); padding: 30px; border-radius: 50px; border: 4px solid var(--gold); }
         .pool-display { font-size: 48px; color: #f1c40f; font-weight: bold; }
         .cards { display: flex; justify-content: center; gap: 15px; margin: 20px 0; height: 160px; }
@@ -29,23 +29,26 @@
         #status-msg { height: 50px; font-size: 1.3rem; color: #f1c40f; font-weight: bold; margin: 10px 0; text-shadow: 1px 1px 2px black; }
         .refill-control { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; border: 1px solid #555; margin: 10px auto; width: fit-content; }
         .toggle-label { font-size: 1.1rem; cursor: pointer; color: #f1c40f; font-weight: bold; display: flex; align-items: center; gap: 10px; }
-        
-        /* 踢人按鈕 */
         .kick-btn { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; border: 2px solid white; display: none; font-weight: bold; line-height: 18px; }
         .is-host .kick-btn { display: block; }
 
-        /* 特效層 */
-        #all-in-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
-        #all-in-overlay img { width: 85%; max-width: 550px; border-radius: 20px; }
+        /* 全員影片特效層 */
+        #video-overlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; 
+            justify-content: center; align-items: center; pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
-<div id="all-in-overlay"><img src="https://i.makeagif.com/media/11-26-2024/eH5Q4S.gif"><h1>有人要全部！！！</h1></div>
-<audio id="all-in-sound" src="https://actions.google.com/sounds/v1/foley/metal_trash_can_impact.ogg"></audio>
+<div id="video-overlay">
+    <div id="player"></div>
+    <h1 style="color:var(--gold); margin-top:20px;">我要全部！！！</h1>
+</div>
 
 <div class="game-container">
-    <h1>🏟️ 埔墘射龍門 Pro 旗艦版</h1>
+    <h1>🏟️ 埔墘金龍門 Pro 旗艦版</h1>
 
     <div id="setup-area" class="setup-box">
         <div id="login-part">
@@ -89,7 +92,7 @@
 
         <div id="controls">
             <div id="bet-controls" style="display:none;">
-                <input type="number" id="bet-amount" placeholder="金額" style="width:140px;">
+                <input type="number" id="bet-amount" placeholder="金額(10的倍數)" step="10" style="width:160px;">
                 <div id="action-buttons" style="display:inline-block;">
                     <button id="shoot-normal" onclick="handleAction('shoot')">射門！</button>
                     <div id="guess-buttons" style="display:none;">
@@ -127,7 +130,39 @@
     let myId = localStorage.getItem('dg_id') || "";
     let localData = {};
     let lastEffectId = "";
+    let ytPlayer;
     const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
+
+    // YouTube Player API
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    function onYouTubeIframeAPIReady() {
+        ytPlayer = new YT.Player('player', {
+            height: '360', width: '640',
+            videoId: 'GtyYndoTyV8',
+            playerVars: { 'autoplay': 0, 'controls': 0, 'start': 23, 'end': 26 },
+            events: { 'onStateChange': onPlayerStateChange }
+        });
+    }
+
+    function onPlayerStateChange(event) {
+        if (event.data == YT.PlayerState.ENDED) {
+            document.getElementById('video-overlay').style.display = 'none';
+        }
+    }
+
+    function playAllInEffect() {
+        document.getElementById('video-overlay').style.display = 'flex';
+        ytPlayer.seekTo(23);
+        ytPlayer.playVideo();
+        setTimeout(() => { 
+            ytPlayer.pauseVideo();
+            document.getElementById('video-overlay').style.display = 'none';
+        }, 4000); // 播放約 4 秒
+    }
 
     function joinRoom() {
         const nameInput = document.getElementById('my-name').value.trim();
@@ -151,11 +186,9 @@
             const isHost = (pKeys[0] === myId);
             document.body.className = isHost ? "is-host" : "";
 
-            // 全員特效
+            // 全員 YouTube 特效
             if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
-                document.getElementById('all-in-sound').play();
-                document.getElementById('all-in-overlay').style.display = 'flex';
-                setTimeout(() => { document.getElementById('all-in-overlay').style.display = 'none'; }, 3000);
+                playAllInEffect();
                 lastEffectId = localData.allInTrigger;
             }
 
@@ -170,11 +203,11 @@
                 document.getElementById('main-board').style.display = 'none';
             }
             document.getElementById('host-controls').style.display = isHost ? 'block' : 'none';
-            renderPlayers(isHost);
+            renderPlayers();
         });
     }
 
-    function renderPlayers(isHost) {
+    function renderPlayers() {
         const area = document.getElementById('player-area'); area.innerHTML = '';
         Object.keys(localData.players).forEach(id => {
             const p = localData.players[id];
@@ -183,7 +216,7 @@
             const balClass = p.balance < 0 ? 'balance-neg' : '';
             div.innerHTML = `
                 <button class="kick-btn" onclick="kickPlayer('${id}')">✕</button>
-                <b>${p.name}</b>${Object.keys(localData.players)[0] === id ? ' 👑' : ''}<br>
+                <b>${p.name}</b><br>
                 <span class="player-balance ${balClass}">$${p.balance}</span>`;
             area.appendChild(div);
         });
@@ -199,10 +232,7 @@
         const refill = document.getElementById('auto-refill').checked;
 
         let players = localData.players, pool = 0;
-        Object.keys(players).forEach(id => {
-            players[id].balance = start - fee;
-            pool += fee;
-        });
+        Object.keys(players).forEach(id => { players[id].balance = start - fee; pool += fee; });
 
         gameRef.update({
             gameStarted: true,
@@ -224,15 +254,11 @@
         let deck = localData.deck || [];
         if (deck.length < 3) deck = generateDecks(localData.deckCount || 2);
         const c1 = deck.pop(); const c2 = deck.pop();
-        gameRef.update({
-            deck: deck, c1: c1, c2: c2, c3: null,
-            gameState: 'waiting_shoot',
-            statusMsg: `輪到 【${localData.players[localData.currentPlayerKey].name}】 下注`
-        });
+        gameRef.update({ deck: deck, c1: c1, c2: c2, c3: null, gameState: 'waiting_shoot', statusMsg: `輪到 【${localData.players[localData.currentPlayerKey].name}】 下注` });
     }
 
     function setAllIn() {
-        if (confirm("🔥 確定要ALL IN嗎？(所有人將看到特效)")) {
+        if (confirm("🔥 確定要全員播放影片並下注池中全部嗎？")) {
             gameRef.update({ allInTrigger: Date.now().toString() });
             document.getElementById('bet-amount').value = localData.pool;
         }
@@ -240,7 +266,8 @@
 
     function handleAction(type) {
         let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
-        if (type !== 'fold' && (bet < 1 || bet > localData.pool)) return alert("下注金額無效");
+        // 10 倍數限制邏輯
+        if (type !== 'fold' && (bet < 1 || bet > localData.pool || bet % 10 !== 0)) return alert("金額無效或非 10 的倍數");
         
         let p = localData.players[myId];
         let nBal = p.balance, nPool = localData.pool, msg = "", c3 = null;
@@ -253,9 +280,7 @@
         } else {
             if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
             c3 = deck.pop();
-            const min = Math.min(localData.c1.val, localData.c2.val);
-            const max = Math.max(localData.c1.val, localData.c2.val);
-            
+            const min = Math.min(localData.c1.val, localData.c2.val), max = Math.max(localData.c1.val, localData.c2.val);
             if (localData.c1.val === localData.c2.val) {
                 if (c3.val === localData.c1.val) { nBal -= bet*3; nPool += bet*3; msg = `🚧 撞柱！輸 $${bet*3}`; }
                 else if ((type === 'up' && c3.val > localData.c1.val) || (type === 'down' && c3.val < localData.c1.val)) { nBal += bet; nPool -= bet; msg = `🎉 猜對！贏 $${bet}`; }
@@ -271,7 +296,6 @@
         let nextK = pKeys[(pKeys.indexOf(myId) + 1) % pKeys.length];
         let updates = { [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null, statusMsg: msg, gameState: 'waiting_deal', currentPlayerKey: nextK };
 
-        // 補底邏輯 (補底金額 = 底注 × 總人數)
         const threshold = localData.entryFee * pKeys.length;
         if ((nPool < threshold && localData.autoRefill) || nPool <= 0) {
             pKeys.forEach(k => {
@@ -281,7 +305,6 @@
             });
             updates.statusMsg = msg + " | 💰 執行補底！";
         }
-
         gameRef.update(updates);
         document.getElementById('bet-amount').value = "";
     }
@@ -291,11 +314,9 @@
         document.getElementById('status-msg').innerText = localData.statusMsg || "";
         document.getElementById('cards-left').innerText = localData.deck ? localData.deck.length : 0;
         updateCard('c1', localData.c1); updateCard('c2', localData.c2); updateCard('c3', localData.c3);
-        
         const isTurn = (localData.currentPlayerKey === myId);
         const isShoot = (localData.gameState === 'waiting_shoot');
         const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
-        
         document.getElementById('bet-controls').style.display = (isTurn && isShoot) ? 'block' : 'none';
         document.getElementById('shoot-normal').style.display = isSame ? 'none' : 'inline-block';
         document.getElementById('guess-buttons').style.display = isSame ? 'inline-block' : 'none';
