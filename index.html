@@ -41,11 +41,11 @@
 </head>
 <body>
 
-<div id="all-in-overlay"><img src="https://i.makeagif.com/media/11-26-2024/eH5Q4S.gif"><h1>有人孤注一擲了！！！</h1></div>
+<div id="all-in-overlay"><img src="https://i.makeagif.com/media/11-26-2024/eH5Q4S.gif"><h1>有人要全部！！！</h1></div>
 <audio id="all-in-sound" src="https://actions.google.com/sounds/v1/foley/metal_trash_can_impact.ogg"></audio>
 
 <div class="game-container">
-    <h1>🏟️ 皇家射龍門 Pro 旗艦版</h1>
+    <h1>🏟️ 埔墘射龍門 Pro 旗艦版</h1>
 
     <div id="setup-area" class="setup-box">
         <div id="login-part">
@@ -232,7 +232,7 @@
     }
 
     function setAllIn() {
-        if (confirm("🔥 確定要孤注一擲嗎？(所有人將看到特效)")) {
+        if (confirm("🔥 確定要ALL IN嗎？(所有人將看到特效)")) {
             gameRef.update({ allInTrigger: Date.now().toString() });
             document.getElementById('bet-amount').value = localData.pool;
         }
