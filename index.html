@@ -8,47 +8,59 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <style>
         :root { --gold: #d4af37; --dark-green: #1a472a; --card-red: #e74c3c; --spectator: #95a5a6; }
-        body { background: var(--dark-green); color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 10px; }
+        body { background: var(--dark-green); color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 10px; overflow-x: hidden; }
         .game-container { max-width: 1000px; margin: auto; }
+        
+        /* 玩家清單樣式 */
         .player-list { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; min-height: 80px; }
         .player-card { background: rgba(0,0,0,0.8); padding: 12px; border-radius: 12px; border: 2px solid #444; width: 130px; position: relative; }
         .player-card.active { border-color: var(--gold); box-shadow: 0 0 15px var(--gold); background: rgba(212, 175, 55, 0.1); }
         .player-balance { color: #2ecc71; font-weight: bold; font-family: monospace; font-size: 1.1rem; }
         .balance-neg { color: #ff7675 !important; }
         .timer-display { color: #ff7675; font-size: 0.8rem; font-weight: bold; margin-top: 5px; }
+
+        /* 牌桌樣式 */
         .board { background: radial-gradient(circle, #2d5a3c 0%, #1a472a 100%); padding: 30px; border-radius: 50px; border: 4px solid var(--gold); }
         .pool-display { font-size: 48px; color: #f1c40f; font-weight: bold; }
         .cards { display: flex; justify-content: center; gap: 15px; margin: 20px 0; height: 160px; }
         .card { width: 100px; height: 145px; background: white; border-radius: 10px; color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 35px; font-weight: bold; border: 2px solid #333; box-shadow: 3px 3px 10px rgba(0,0,0,0.3); white-space: pre-wrap; }
         .card.hidden { background: #2c3e50; color: transparent; border: 2px solid #7f8c8d; }
         .card.red { color: var(--card-red); }
+
+        /* 控制區樣式 */
         .setup-box { background: rgba(0,0,0,0.8); padding: 25px; border-radius: 20px; border: 2px solid var(--gold); margin-bottom: 20px; }
         .input-group { margin: 15px 0; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
         input[type="number"], select { padding: 10px; border-radius: 5px; border: none; text-align: center; font-size: 1rem; background: #eee; }
         button { padding: 10px 18px; cursor: pointer; background: var(--gold); border: none; font-weight: bold; border-radius: 6px; color: #1a472a; margin: 4px; transition: 0.2s; }
         button:hover { filter: brightness(1.2); }
         #status-msg { height: 50px; font-size: 1.3rem; color: #f1c40f; font-weight: bold; margin: 10px 0; text-shadow: 1px 1px 2px black; }
-        .refill-control { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; border: 1px solid #555; margin: 10px auto; width: fit-content; }
-        .toggle-label { font-size: 1.1rem; cursor: pointer; color: #f1c40f; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+
+        /* 踢人按鈕 */
         .kick-btn { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; border: 2px solid white; display: none; font-weight: bold; line-height: 18px; }
         .is-host .kick-btn { display: block; }
-        #all-in-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
-        #video-box { overflow: hidden; border-radius: 20px; box-shadow: 0 0 30px var(--gold); }
-        
-        .emoji-bar { margin: 10px 0; }
-        .emoji-btn { font-size: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid #555; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; padding: 0; transition: 0.2s; }
-        .floating-emoji { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); font-size: 2.5rem; animation: emojiPop 0.5s ease-out; z-index: 10; }
-        @keyframes emojiPop { 0% { opacity: 0; transform: translateX(-50%) scale(0.5); } 50% { opacity: 1; transform: translateX(-50%) scale(1.2); } 100% { transform: translateX(-50%) scale(1); } }
 
-        /* 籌碼樣式區 */
+        /* 全域表情顯示容器 */
+        #emoji-broadcast-area { position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 10000; display: flex; flex-direction: column; align-items: center; }
+        .broadcast-item { background: rgba(0,0,0,0.8); color: var(--gold); padding: 10px 20px; border-radius: 30px; margin-bottom: 8px; font-weight: bold; font-size: 1.2rem; border: 2px solid var(--gold); animation: fadeUp 2.5s forwards; white-space: nowrap; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
+        @keyframes fadeUp { 0% { opacity: 0; transform: translateY(30px); } 15% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-60px); } }
+
+        /* 籌碼控制 */
         .chip-container { display: flex; justify-content: center; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
         .chip-btn { background: none; border: none; padding: 0; cursor: pointer; transition: transform 0.1s, filter 0.2s; }
-        .chip-btn img { width: 65px; height: 65px; border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.5); object-fit: cover; }
+        .chip-btn img { width: 60px; height: 60px; border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.5); object-fit: cover; }
         .chip-btn:active { transform: scale(0.9); filter: brightness(1.5); }
         #bet-amount { background: #222; color: var(--gold); border: 2px solid var(--gold); font-size: 1.5rem; width: 120px !important; font-weight: bold; border-radius: 10px; }
+
+        .emoji-bar { margin-bottom: 15px; }
+        .emoji-btn { font-size: 1.8rem; background: rgba(0,0,0,0.3); border: 1px solid #555; border-radius: 50%; width: 50px; height: 50px; cursor: pointer; margin: 0 5px; transition: 0.2s; }
+        .emoji-btn:hover { background: rgba(212, 175, 55, 0.2); transform: scale(1.1); }
+
+        #all-in-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
     </style>
 </head>
 <body>
+
+<div id="emoji-broadcast-area"></div>
 
 <div id="all-in-overlay">
     <div id="video-box"></div>
@@ -60,7 +72,7 @@
     <div id="setup-area" class="setup-box">
         <div id="login-part">
             <input type="text" id="my-name" placeholder="輸入暱稱">
-            <button onclick="joinRoom()">找回身分/進入大廳</button>
+            <button onclick="joinRoom()">進入遊戲</button>
         </div>
         <div id="host-part" style="display:none;">
             <h3>👑 房主設定面板</h3>
@@ -71,21 +83,16 @@
             <div class="input-group">
                 棄牌投注: <input type="number" id="fold-penalty" value="20" style="width:80px;">
                 牌組數量: <select id="deck-count">
-                    <option value="1">1 副牌</option><option value="2" selected>2 副牌</option>
-                    <option value="3">3 副牌</option><option value="4">4 副牌</option>
+                    <option value="2" selected>2 副牌</option><option value="4">4 副牌</option>
                 </select>
             </div>
-            <div class="refill-control">
-                <label class="toggle-label">
-                    <input type="checkbox" id="auto-refill" checked> 🔥 開啟池金不足補底
-                </label>
-            </div>
-            <button onclick="hostStartGame()" style="background:#2ecc71; color:white; font-size: 1.2rem; width: 80%; margin-top:10px;">✅ 確認規則・開桌</button>
+            <button onclick="hostStartGame()" style="background:#2ecc71; color:white; width: 80%;">✅ 開桌</button>
         </div>
     </div>
+
     <div id="player-area" class="player-list"></div>
+
     <div id="main-board" class="board" style="display:none;">
-        
         <div class="emoji-bar">
             <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
             <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
@@ -96,14 +103,15 @@
 
         <div class="pool-display">💰 $<span id="pool-val">0</span></div>
         <div id="status-msg">等待發牌...</div>
+        
         <div class="cards">
             <div id="c1" class="card hidden">?</div>
             <div id="c3" class="card hidden">?</div>
             <div id="c2" class="card hidden">?</div>
         </div>
+
         <div id="controls">
             <div id="bet-controls" style="display:none;">
-                
                 <div class="chip-container">
                     <button class="chip-btn" onclick="addBet(10)"><img src="pic/m10.jpg" alt="10"></button>
                     <button class="chip-btn" onclick="addBet(50)"><img src="pic/m50.jpg" alt="50"></button>
@@ -111,12 +119,10 @@
                     <button class="chip-btn" onclick="addBet(500)"><img src="pic/m500.jpg" alt="500"></button>
                     <button class="chip-btn" onclick="addBet(1000)"><img src="pic/m1000.jpg" alt="1000"></button>
                 </div>
-
                 <div style="margin-bottom: 15px;">
-                    下注金額：<input type="number" id="bet-amount" value="0" readonly>
-                    <button onclick="document.getElementById('bet-amount').value=0" style="background:#555; padding: 5px 10px;">清空</button>
+                    下注：<input type="number" id="bet-amount" value="0" readonly>
+                    <button onclick="document.getElementById('bet-amount').value=0" style="background:#555;">清空</button>
                 </div>
-
                 <div id="action-buttons" style="display:inline-block;">
                     <button id="shoot-normal" onclick="handleAction('shoot')">射門！</button>
                     <div id="guess-buttons" style="display:none;">
@@ -125,16 +131,16 @@
                     </div>
                 </div>
                 <button onclick="setAllIn()" style="background:var(--card-red); color:white;">ALL IN</button>
-                <button onclick="handleAction('fold')" style="background:#95a5a6;">放棄 (扣 $<span id="fold-cost-ui">0</span>)</button>
+                <button onclick="handleAction('fold')" style="background:#95a5a6;">放棄 ($<span id="fold-cost-ui">0</span>)</button>
             </div>
             <div id="player-deal-btn" style="display:none;">
-                <button onclick="drawGoalPost()" style="background: #2ecc71; color: white; font-size: 1.2rem; padding: 10px 20px;">♠ 立即發牌 ♣</button>
+                <button onclick="drawGoalPost()" style="background: #2ecc71; color: white; font-size: 1.2rem;">♠ 立即發牌 ♣</button>
             </div>
-            <div id="host-controls" style="margin-top:20px; border-top:1px solid #666; padding-top:10px; display:none;">
-                <button onclick="hostResetToLobby()" style="background: #e74c3c; color: white;">🚨 重製回設定</button>
+            <div id="host-controls" style="margin-top:20px; display:none;">
+                <button onclick="hostResetToLobby()" style="background: #e74c3c; color: white;">🚨 重製大廳</button>
             </div>
         </div>
-        <p style="font-size: 14px; color: #ddd; margin-top:20px;">🎴 剩餘牌數: <span id="cards-left">0</span></p>
+        <p>🎴 牌庫剩餘: <span id="cards-left">0</span></p>
     </div>
 </div>
 
@@ -155,30 +161,28 @@
     let myId = localStorage.getItem('dg_id') || "";
     let localData = {};
     let lastEffectId = "";
+    let lastEmojiTime = 0;
+    let emojiSpamCount = 0;
+    let emojiResetTimer = null;
     const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
 
+    // 踢人與心跳監控
     setInterval(() => {
         if (!localData.gameStarted || !localData.players) return;
         const pKeys = Object.keys(localData.players);
         const currentPlayerId = localData.currentPlayerKey;
-
         if (currentPlayerId && !localData.players[currentPlayerId]) {
-            gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: pKeys[0], statusMsg: "玩家離開，換下一位", lastActionTime: Date.now(), c1: null, c2: null, c3: null });
+            gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: pKeys[0], lastActionTime: Date.now() });
             return;
         }
-
         renderPlayers();
-
         if (pKeys.includes(myId) && localData.lastActionTime) {
             const diff = (Date.now() - localData.lastActionTime) / 1000;
-            if (diff > 60) {
-                const afkId = currentPlayerId;
-                const nextK = pKeys[(pKeys.indexOf(afkId) + 1) % pKeys.length];
-                if (pKeys[0] === myId) {
-                    gameRef.child('players/' + afkId).remove().then(() => {
-                        gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: nextK, statusMsg: "超時踢除玩家", lastActionTime: Date.now(), c1: null, c2: null, c3: null });
-                    });
-                }
+            if (diff > 60 && pKeys[0] === myId) { // 只有在線的第一人執行踢除動作
+                gameRef.child('players/' + currentPlayerId).remove().then(() => {
+                    const nextK = pKeys[(pKeys.indexOf(currentPlayerId) + 1) % pKeys.length];
+                    gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: nextK, statusMsg: "玩家超時踢除", lastActionTime: Date.now() });
+                });
             }
         }
     }, 1000);
@@ -188,10 +192,13 @@
         if (!nameInput) return alert("請輸入暱稱");
         gameRef.child('players').once('value', snap => {
             const players = snap.val() || {};
-            if (myId && !players[myId]) { myId = ""; localStorage.removeItem('dg_id'); }
-            if (!myId) { const newRef = gameRef.child('players').push(); myId = newRef.key; localStorage.setItem('dg_id', myId); }
+            if (!myId || !players[myId]) {
+                const newRef = gameRef.child('players').push();
+                myId = newRef.key;
+                localStorage.setItem('dg_id', myId);
+            }
             gameRef.child('players/'+myId).update({ name: nameInput, lastActive: Date.now() });
-            gameRef.once('value', snap2 => { const d = snap2.val(); if(d && d.allInTrigger) lastEffectId = d.allInTrigger; startListening(); });
+            startListening();
             document.getElementById('login-part').style.display = 'none';
         });
     }
@@ -199,28 +206,29 @@
     function startListening() {
         gameRef.on('value', snap => {
             localData = snap.val() || {};
-            if (!localData.players || !localData.players[myId]) {
-                document.getElementById('setup-area').style.display = 'block';
-                document.getElementById('main-board').style.display = 'none';
-                document.getElementById('login-part').style.display = 'block';
-                return;
-            }
-            const pKeys = Object.keys(localData.players);
-            const isHost = (pKeys[0] === myId);
+            if (!localData.players || !localData.players[myId]) return;
+
+            const isHost = (Object.keys(localData.players)[0] === myId);
             document.body.className = isHost ? "is-host" : "";
 
+            // 表情廣播監聽
+            if (localData.lastEmoji && localData.lastEmoji.time !== lastEmojiTime) {
+                showEmojiBroadcast(localData.lastEmoji.name, localData.lastEmoji.icon);
+                lastEmojiTime = localData.lastEmoji.time;
+            }
+
+            // All-in 影片監聽
             if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
                 const videoBox = document.getElementById('video-box');
-                videoBox.innerHTML = `<video id="allInVdo" width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
+                videoBox.innerHTML = `<video width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
                 document.getElementById('all-in-overlay').style.display = 'flex';
-                setTimeout(() => { document.getElementById('all-in-overlay').style.display = 'none'; videoBox.innerHTML = ''; }, 2500);
+                setTimeout(() => { document.getElementById('all-in-overlay').style.display = 'none'; }, 2500);
                 lastEffectId = localData.allInTrigger;
             }
 
             if (localData.gameStarted) {
                 document.getElementById('setup-area').style.display = 'none';
                 document.getElementById('main-board').style.display = 'block';
-                document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 0;
                 renderUI(isHost);
             } else {
                 document.getElementById('setup-area').style.display = 'block';
@@ -232,68 +240,89 @@
         });
     }
 
+    // 表情發送與 CD 邏輯
+    function sendEmoji(icon) {
+        if (!emojiResetTimer) {
+            emojiResetTimer = setTimeout(() => {
+                emojiSpamCount = 0;
+                emojiResetTimer = null;
+            }, 10000);
+        }
+        if (emojiSpamCount >= 3) return alert("按太快了！10秒內限發3次");
+        
+        emojiSpamCount++;
+        gameRef.update({
+            lastEmoji: {
+                name: localData.players[myId].name,
+                icon: icon,
+                time: Date.now()
+            }
+        });
+    }
+
+    function showEmojiBroadcast(name, icon) {
+        const area = document.getElementById('emoji-broadcast-area');
+        const div = document.createElement('div');
+        div.className = 'broadcast-item';
+        div.innerText = `${name}: ${icon}`;
+        area.appendChild(div);
+        setTimeout(() => div.remove(), 2500);
+    }
+
     function addBet(val) {
         let current = parseInt(document.getElementById('bet-amount').value) || 0;
         let pool = localData.pool || 0;
-        let newVal = current + val;
-        if (newVal > pool) newVal = pool; 
+        let newVal = Math.min(current + val, pool);
         document.getElementById('bet-amount').value = newVal;
     }
 
     function renderPlayers() {
-        const area = document.getElementById('player-area'); if(!area) return;
+        const area = document.getElementById('player-area');
         area.innerHTML = '';
-        const now = Date.now();
         const players = localData.players || {};
         Object.keys(players).forEach(id => {
             const p = players[id];
             const isActive = (id === localData.currentPlayerKey);
             const div = document.createElement('div');
             div.className = `player-card ${isActive ? 'active' : ''}`;
-            let emojiHtml = p.emoji ? `<div class="floating-emoji">${p.emoji}</div>` : "";
-            let timerHtml = (isActive && localData.lastActionTime) ? `<div class="timer-display">⏱ ${Math.max(0, 60 - Math.floor((now - localData.lastActionTime) / 1000))}s</div>` : "";
-            div.innerHTML = `<button class="kick-btn" onclick="kickPlayer('${id}')">✕</button>${emojiHtml}<b>${p.name}</b>${Object.keys(players)[0] === id ? ' 👑' : ''}<br><span class="player-balance ${p.balance < 0 ? 'balance-neg' : ''}">$${p.balance}</span>${timerHtml}`;
+            let timer = (isActive && localData.lastActionTime) ? `<div class="timer-display">⏱ ${Math.max(0, 60 - Math.floor((Date.now() - localData.lastActionTime) / 1000))}s</div>` : "";
+            div.innerHTML = `<button class="kick-btn" onclick="kickPlayer('${id}')">✕</button><b>${p.name}</b><br><span class="player-balance ${p.balance < 0 ? 'balance-neg' : ''}">$${p.balance}</span>${timer}`;
             area.appendChild(div);
         });
     }
 
-    function sendEmoji(emojiIcon) {
-        gameRef.child(`players/${myId}`).update({ emoji: emojiIcon });
-        setTimeout(() => { gameRef.child(`players/${myId}`).update({ emoji: null }); }, 3000);
-    }
-
     function hostStartGame() {
-        const fee = parseInt(document.getElementById('entry-fee').value) || 0;
+        const fee = parseInt(document.getElementById('entry-fee').value) || 100;
         const start = parseInt(document.getElementById('start-balance').value) || 1000;
-        const penalty = parseInt(document.getElementById('fold-penalty').value) || 0;
+        const penalty = parseInt(document.getElementById('fold-penalty').value) || 20;
         const decks = parseInt(document.getElementById('deck-count').value) || 2;
-        const refill = document.getElementById('auto-refill').checked;
         let players = localData.players, pool = 0;
         Object.keys(players).forEach(id => { players[id].balance = start - fee; pool += fee; });
         gameRef.update({
             gameStarted: true, deck: generateDecks(decks), pool: pool, entryFee: fee, foldPenalty: penalty,
-            autoRefill: refill, deckCount: decks, gameState: 'waiting_deal', statusMsg: "請抽門柱",
-            currentPlayerKey: Object.keys(players)[0], players: players, lastActionTime: Date.now(),
-            c1: null, c2: null, c3: null
+            deckCount: decks, gameState: 'waiting_deal', statusMsg: "新對局開始，請發牌",
+            currentPlayerKey: Object.keys(players)[0], players: players, lastActionTime: Date.now()
         });
     }
 
     function drawGoalPost() {
         let deck = localData.deck || [];
-        if (deck.length < 3) deck = generateDecks(localData.deckCount || 2);
+        if (deck.length < 3) deck = generateDecks(localData.deckCount);
         const c1 = deck.pop(); const c2 = deck.pop();
-        gameRef.update({ deck: deck, c1: c1, c2: c2, c3: null, gameState: 'waiting_shoot', lastActionTime: Date.now(), statusMsg: "請下注" });
+        gameRef.update({ deck: deck, c1: c1, c2: c2, c3: null, gameState: 'waiting_shoot', lastActionTime: Date.now(), statusMsg: "請下注射門" });
     }
 
     function handleAction(type) {
         let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
-        if (type !== 'fold' && (bet < 1 || bet > localData.pool)) return alert("金額無效");
+        if (type !== 'fold' && (bet < 1 || bet > localData.pool)) return alert("請下注");
         let p = localData.players[myId];
         let nBal = p.balance, nPool = localData.pool, msg = "", c3 = null, deck = localData.deck || [];
 
-        if (type === 'fold') { nBal -= localData.foldPenalty; nPool += localData.foldPenalty; msg = `${p.name} 棄牌`; }
-        else {
-            if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
+        if (type === 'fold') {
+            nBal -= localData.foldPenalty; nPool += localData.foldPenalty;
+            msg = `${p.name} 棄牌 (-${localData.foldPenalty})`;
+        } else {
+            if (deck.length < 1) deck = generateDecks(localData.deckCount);
             c3 = deck.pop();
             const min = Math.min(localData.c1.val, localData.c2.val), max = Math.max(localData.c1.val, localData.c2.val);
             if (localData.c1.val === localData.c2.val) {
@@ -309,9 +338,15 @@
 
         const pKeys = Object.keys(localData.players);
         let nextK = pKeys[(pKeys.indexOf(myId) + 1) % pKeys.length];
-        let updates = { [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null, statusMsg: msg + " | 等待下家", gameState: 'waiting_deal', currentPlayerKey: nextK, lastActionTime: Date.now() };
-        if ((nPool < localData.entryFee * pKeys.length && localData.autoRefill) || nPool <= 0) {
-            pKeys.forEach(k => { let bal = (k === myId ? nBal : localData.players[k].balance); updates[`players/${k}/balance`] = bal - localData.entryFee; updates.pool += localData.entryFee; });
+        let updates = { [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null, statusMsg: msg, gameState: 'waiting_deal', currentPlayerKey: nextK, lastActionTime: Date.now() };
+        
+        // 池金不足自動補底 (底注 * 人數)
+        if (nPool < localData.entryFee * pKeys.length) {
+            pKeys.forEach(k => {
+                let currentBal = (k === myId) ? nBal : localData.players[k].balance;
+                updates[`players/${k}/balance`] = currentBal - localData.entryFee;
+                updates.pool += localData.entryFee;
+            });
         }
         gameRef.update(updates);
         document.getElementById('bet-amount').value = 0;
@@ -321,6 +356,7 @@
         document.getElementById('pool-val').innerText = localData.pool || 0;
         document.getElementById('status-msg').innerText = localData.statusMsg || "";
         document.getElementById('cards-left').innerText = localData.deck ? localData.deck.length : 0;
+        document.getElementById('fold-cost-ui').innerText = localData.foldPenalty;
         updateCard('c1', localData.c1); updateCard('c2', localData.c2); updateCard('c3', localData.c3);
         const isTurn = (localData.currentPlayerKey === myId);
         document.getElementById('player-deal-btn').style.display = (isTurn && localData.gameState === 'waiting_deal') ? 'block' : 'none';
@@ -330,11 +366,11 @@
         document.getElementById('guess-buttons').style.display = isSame ? 'inline-block' : 'none';
     }
 
-    function setAllIn() { if (confirm("🔥 ALL IN？")) { gameRef.update({ allInTrigger: Date.now().toString() }); document.getElementById('bet-amount').value = localData.pool; } }
+    function setAllIn() { if (confirm("🔥 確定 ALL IN？")) { gameRef.update({ allInTrigger: Date.now().toString() }); document.getElementById('bet-amount').value = localData.pool; } }
     function updateCard(id, c) { const el = document.getElementById(id); if (!c) { el.classList.add('hidden'); el.innerText = '?'; } else { el.classList.remove('hidden'); el.innerText = `${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit === '♥' || c.suit === '♦'); } }
     function generateDecks(count) { let deck = []; const suits = ['♠', '♥', '♦', '♣']; for (let i = 0; i < count; i++) suits.forEach(s => { for (let v = 1; v <= 13; v++) deck.push({ val: v, suit: s, label: labels[v] || v }); }); return deck.sort(() => Math.random() - 0.5); }
     function kickPlayer(id) { if(confirm("確定剔除？")) gameRef.child('players/'+id).remove(); }
-    function hostResetToLobby() { if(confirm("確定重製？")) gameRef.update({ gameStarted: false }); }
+    function hostResetToLobby() { if(confirm("重製大廳會重設所有金錢，確定？")) gameRef.update({ gameStarted: false }); }
 </script>
 </body>
 </html>
