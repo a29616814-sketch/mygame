@@ -35,12 +35,17 @@
         #all-in-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
         #video-box { overflow: hidden; border-radius: 20px; box-shadow: 0 0 30px var(--gold); }
         
-        /* 表情包樣式 */
         .emoji-bar { margin: 10px 0; }
         .emoji-btn { font-size: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid #555; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; padding: 0; transition: 0.2s; }
-        .emoji-btn:hover { transform: scale(1.2); background: rgba(212, 175, 55, 0.2); }
         .floating-emoji { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); font-size: 2.5rem; animation: emojiPop 0.5s ease-out; z-index: 10; }
         @keyframes emojiPop { 0% { opacity: 0; transform: translateX(-50%) scale(0.5); } 50% { opacity: 1; transform: translateX(-50%) scale(1.2); } 100% { transform: translateX(-50%) scale(1); } }
+
+        /* 籌碼樣式區 */
+        .chip-container { display: flex; justify-content: center; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
+        .chip-btn { background: none; border: none; padding: 0; cursor: pointer; transition: transform 0.1s, filter 0.2s; }
+        .chip-btn img { width: 65px; height: 65px; border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.5); object-fit: cover; }
+        .chip-btn:active { transform: scale(0.9); filter: brightness(1.5); }
+        #bet-amount { background: #222; color: var(--gold); border: 2px solid var(--gold); font-size: 1.5rem; width: 120px !important; font-weight: bold; border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -98,7 +103,20 @@
         </div>
         <div id="controls">
             <div id="bet-controls" style="display:none;">
-                <input type="number" id="bet-amount" placeholder="金額(10的倍數)" step="10" style="width:140px;">
+                
+                <div class="chip-container">
+                    <button class="chip-btn" onclick="addBet(10)"><img src="pic/m10.jpg" alt="10"></button>
+                    <button class="chip-btn" onclick="addBet(50)"><img src="pic/m50.jpg" alt="50"></button>
+                    <button class="chip-btn" onclick="addBet(100)"><img src="pic/m100.jpg" alt="100"></button>
+                    <button class="chip-btn" onclick="addBet(500)"><img src="pic/m500.jpg" alt="500"></button>
+                    <button class="chip-btn" onclick="addBet(1000)"><img src="pic/m1000.jpg" alt="1000"></button>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    下注金額：<input type="number" id="bet-amount" value="0" readonly>
+                    <button onclick="document.getElementById('bet-amount').value=0" style="background:#555; padding: 5px 10px;">清空</button>
+                </div>
+
                 <div id="action-buttons" style="display:inline-block;">
                     <button id="shoot-normal" onclick="handleAction('shoot')">射門！</button>
                     <div id="guess-buttons" style="display:none;">
@@ -139,44 +157,26 @@
     let lastEffectId = "";
     const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
 
-    // 踢人功能改為全體玩家監控
     setInterval(() => {
         if (!localData.gameStarted || !localData.players) return;
         const pKeys = Object.keys(localData.players);
         const currentPlayerId = localData.currentPlayerKey;
 
-        // 如果目前輪到的玩家已經消失在玩家清單中（被手動刪除或發生錯誤）
         if (currentPlayerId && !localData.players[currentPlayerId]) {
-            gameRef.update({
-                gameState: 'waiting_deal',
-                currentPlayerKey: pKeys[0],
-                statusMsg: "玩家離開，換下一位",
-                lastActionTime: Date.now(),
-                c1: null, c2: null, c3: null
-            });
+            gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: pKeys[0], statusMsg: "玩家離開，換下一位", lastActionTime: Date.now(), c1: null, c2: null, c3: null });
             return;
         }
 
         renderPlayers();
 
-        // 核心邏輯：任何人都可以判斷超時。
-        // 為避免多人同時發送導致 Firebase 混亂，我們讓「在線的第一個人」負責發送更新
         if (pKeys.includes(myId) && localData.lastActionTime) {
             const diff = (Date.now() - localData.lastActionTime) / 1000;
             if (diff > 60) {
                 const afkId = currentPlayerId;
                 const nextK = pKeys[(pKeys.indexOf(afkId) + 1) % pKeys.length];
-                
-                // 只有名單中第一個（目前在線的人）負責執行 Firebase 刪除動作
                 if (pKeys[0] === myId) {
                     gameRef.child('players/' + afkId).remove().then(() => {
-                        gameRef.update({
-                            gameState: 'waiting_deal',
-                            currentPlayerKey: nextK,
-                            statusMsg: "超時踢除玩家",
-                            lastActionTime: Date.now(),
-                            c1: null, c2: null, c3: null
-                        });
+                        gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: nextK, statusMsg: "超時踢除玩家", lastActionTime: Date.now(), c1: null, c2: null, c3: null });
                     });
                 }
             }
@@ -186,24 +186,12 @@
     function joinRoom() {
         const nameInput = document.getElementById('my-name').value.trim();
         if (!nameInput) return alert("請輸入暱稱");
-
         gameRef.child('players').once('value', snap => {
             const players = snap.val() || {};
-            if (myId && !players[myId]) {
-                myId = "";
-                localStorage.removeItem('dg_id');
-            }
-            if (!myId) {
-                const newRef = gameRef.child('players').push();
-                myId = newRef.key;
-                localStorage.setItem('dg_id', myId);
-            }
+            if (myId && !players[myId]) { myId = ""; localStorage.removeItem('dg_id'); }
+            if (!myId) { const newRef = gameRef.child('players').push(); myId = newRef.key; localStorage.setItem('dg_id', myId); }
             gameRef.child('players/'+myId).update({ name: nameInput, lastActive: Date.now() });
-            gameRef.once('value', snap2 => {
-                const d = snap2.val();
-                if(d && d.allInTrigger) lastEffectId = d.allInTrigger;
-                startListening();
-            });
+            gameRef.once('value', snap2 => { const d = snap2.val(); if(d && d.allInTrigger) lastEffectId = d.allInTrigger; startListening(); });
             document.getElementById('login-part').style.display = 'none';
         });
     }
@@ -217,7 +205,6 @@
                 document.getElementById('login-part').style.display = 'block';
                 return;
             }
-
             const pKeys = Object.keys(localData.players);
             const isHost = (pKeys[0] === myId);
             document.body.className = isHost ? "is-host" : "";
@@ -226,10 +213,7 @@
                 const videoBox = document.getElementById('video-box');
                 videoBox.innerHTML = `<video id="allInVdo" width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
                 document.getElementById('all-in-overlay').style.display = 'flex';
-                setTimeout(() => { 
-                    document.getElementById('all-in-overlay').style.display = 'none'; 
-                    videoBox.innerHTML = ''; 
-                }, 2500);
+                setTimeout(() => { document.getElementById('all-in-overlay').style.display = 'none'; videoBox.innerHTML = ''; }, 2500);
                 lastEffectId = localData.allInTrigger;
             }
 
@@ -248,6 +232,14 @@
         });
     }
 
+    function addBet(val) {
+        let current = parseInt(document.getElementById('bet-amount').value) || 0;
+        let pool = localData.pool || 0;
+        let newVal = current + val;
+        if (newVal > pool) newVal = pool; 
+        document.getElementById('bet-amount').value = newVal;
+    }
+
     function renderPlayers() {
         const area = document.getElementById('player-area'); if(!area) return;
         area.innerHTML = '';
@@ -258,29 +250,16 @@
             const isActive = (id === localData.currentPlayerKey);
             const div = document.createElement('div');
             div.className = `player-card ${isActive ? 'active' : ''}`;
-            
             let emojiHtml = p.emoji ? `<div class="floating-emoji">${p.emoji}</div>` : "";
-            let timerHtml = "";
-            if (isActive && localData.lastActionTime) {
-                const timeLeft = Math.max(0, 60 - Math.floor((now - localData.lastActionTime) / 1000));
-                timerHtml = `<div class="timer-display">⏱ ${timeLeft}s</div>`;
-            }
-            
-            div.innerHTML = `<button class="kick-btn" onclick="kickPlayer('${id}')">✕</button>
-                ${emojiHtml}
-                <b>${p.name}</b>${Object.keys(players)[0] === id ? ' 👑' : ''}<br>
-                <span class="player-balance ${p.balance < 0 ? 'balance-neg' : ''}">$${p.balance}</span>${timerHtml}`;
+            let timerHtml = (isActive && localData.lastActionTime) ? `<div class="timer-display">⏱ ${Math.max(0, 60 - Math.floor((now - localData.lastActionTime) / 1000))}s</div>` : "";
+            div.innerHTML = `<button class="kick-btn" onclick="kickPlayer('${id}')">✕</button>${emojiHtml}<b>${p.name}</b>${Object.keys(players)[0] === id ? ' 👑' : ''}<br><span class="player-balance ${p.balance < 0 ? 'balance-neg' : ''}">$${p.balance}</span>${timerHtml}`;
             area.appendChild(div);
         });
     }
 
-    // 表情包發送
     function sendEmoji(emojiIcon) {
         gameRef.child(`players/${myId}`).update({ emoji: emojiIcon });
-        // 3秒後自動清除
-        setTimeout(() => {
-            gameRef.child(`players/${myId}`).update({ emoji: null });
-        }, 3000);
+        setTimeout(() => { gameRef.child(`players/${myId}`).update({ emoji: null }); }, 3000);
     }
 
     function hostStartGame() {
@@ -303,25 +282,17 @@
         let deck = localData.deck || [];
         if (deck.length < 3) deck = generateDecks(localData.deckCount || 2);
         const c1 = deck.pop(); const c2 = deck.pop();
-        gameRef.update({
-            deck: deck, c1: c1, c2: c2, c3: null, gameState: 'waiting_shoot',
-            lastActionTime: Date.now(), statusMsg: "請下注"
-        });
+        gameRef.update({ deck: deck, c1: c1, c2: c2, c3: null, gameState: 'waiting_shoot', lastActionTime: Date.now(), statusMsg: "請下注" });
     }
 
     function handleAction(type) {
         let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
-        if (type !== 'fold') {
-            if (bet < 1 || bet > localData.pool || bet % 10 !== 0) return alert("金額無效(須10的倍數)");
-        }
+        if (type !== 'fold' && (bet < 1 || bet > localData.pool)) return alert("金額無效");
         let p = localData.players[myId];
-        let nBal = p.balance, nPool = localData.pool, msg = "", c3 = null;
-        let deck = localData.deck || [];
+        let nBal = p.balance, nPool = localData.pool, msg = "", c3 = null, deck = localData.deck || [];
 
-        if (type === 'fold') {
-            nBal -= localData.foldPenalty; nPool += localData.foldPenalty;
-            msg = `${p.name} 棄牌`;
-        } else {
+        if (type === 'fold') { nBal -= localData.foldPenalty; nPool += localData.foldPenalty; msg = `${p.name} 棄牌`; }
+        else {
             if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
             c3 = deck.pop();
             const min = Math.min(localData.c1.val, localData.c2.val), max = Math.max(localData.c1.val, localData.c2.val);
@@ -338,22 +309,12 @@
 
         const pKeys = Object.keys(localData.players);
         let nextK = pKeys[(pKeys.indexOf(myId) + 1) % pKeys.length];
-        let updates = {
-            [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null,
-            statusMsg: msg + " | 等待下家", gameState: 'waiting_deal',
-            currentPlayerKey: nextK, lastActionTime: Date.now()
-        };
-
-        const threshold = localData.entryFee * pKeys.length;
-        if ((nPool < threshold && localData.autoRefill) || nPool <= 0) {
-            pKeys.forEach(k => {
-                let bal = (k === myId ? nBal : localData.players[k].balance);
-                updates[`players/${k}/balance`] = bal - localData.entryFee;
-                updates.pool += localData.entryFee;
-            });
+        let updates = { [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null, statusMsg: msg + " | 等待下家", gameState: 'waiting_deal', currentPlayerKey: nextK, lastActionTime: Date.now() };
+        if ((nPool < localData.entryFee * pKeys.length && localData.autoRefill) || nPool <= 0) {
+            pKeys.forEach(k => { let bal = (k === myId ? nBal : localData.players[k].balance); updates[`players/${k}/balance`] = bal - localData.entryFee; updates.pool += localData.entryFee; });
         }
         gameRef.update(updates);
-        document.getElementById('bet-amount').value = "";
+        document.getElementById('bet-amount').value = 0;
     }
 
     function renderUI(isHost) {
@@ -369,24 +330,9 @@
         document.getElementById('guess-buttons').style.display = isSame ? 'inline-block' : 'none';
     }
 
-    function setAllIn() {
-        if (confirm("🔥 ALL IN？")) {
-            gameRef.update({ allInTrigger: Date.now().toString() });
-            document.getElementById('bet-amount').value = localData.pool;
-        }
-    }
-
-    function updateCard(id, c) {
-        const el = document.getElementById(id);
-        if (!c) { el.classList.add('hidden'); el.innerText = '?'; }
-        else { el.classList.remove('hidden'); el.innerText = `${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit === '♥' || c.suit === '♦'); }
-    }
-
-    function generateDecks(count) {
-        let deck = []; const suits = ['♠', '♥', '♦', '♣'];
-        for (let i = 0; i < count; i++) suits.forEach(s => { for (let v = 1; v <= 13; v++) deck.push({ val: v, suit: s, label: labels[v] || v }); });
-        return deck.sort(() => Math.random() - 0.5);
-    }
+    function setAllIn() { if (confirm("🔥 ALL IN？")) { gameRef.update({ allInTrigger: Date.now().toString() }); document.getElementById('bet-amount').value = localData.pool; } }
+    function updateCard(id, c) { const el = document.getElementById(id); if (!c) { el.classList.add('hidden'); el.innerText = '?'; } else { el.classList.remove('hidden'); el.innerText = `${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit === '♥' || c.suit === '♦'); } }
+    function generateDecks(count) { let deck = []; const suits = ['♠', '♥', '♦', '♣']; for (let i = 0; i < count; i++) suits.forEach(s => { for (let v = 1; v <= 13; v++) deck.push({ val: v, suit: s, label: labels[v] || v }); }); return deck.sort(() => Math.random() - 0.5); }
     function kickPlayer(id) { if(confirm("確定剔除？")) gameRef.child('players/'+id).remove(); }
     function hostResetToLobby() { if(confirm("確定重製？")) gameRef.update({ gameStarted: false }); }
 </script>
