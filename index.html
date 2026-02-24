@@ -128,7 +128,6 @@
         const pKeys = Object.keys(localData.players);
         const currentPlayerId = localData.currentPlayerKey;
 
-        // 1. 強制檢查當前玩家是否存在 (避免踢除後卡住)
         if (currentPlayerId && !localData.players[currentPlayerId]) {
             gameRef.update({
                 gameState: 'waiting_deal',
@@ -140,9 +139,8 @@
             return;
         }
 
-        renderPlayers(); // UI 秒數刷新
+        renderPlayers();
 
-        // 2. 房主執行 60s 剔除
         if (pKeys[0] === myId && localData.lastActionTime) {
             const diff = (Date.now() - localData.lastActionTime) / 1000;
             if (diff > 60) {
@@ -186,14 +184,23 @@
             const isHost = (pKeys[0] === myId);
             document.body.className = isHost ? "is-host" : "";
 
+            // --- 精確修改：使用本地 video 資料夾內的影片 ---
             if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
                 const videoBox = document.getElementById('video-box');
-                videoBox.innerHTML = `<iframe width="315" height="560" src="https://www.youtube.com/embed/GtyYndoTyV8?start=25&end=27&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
+                // 這裡改用 video 標籤，讀取 video/allin.mp4
+                videoBox.innerHTML = `
+                    <video id="allInVdo" width="315" height="560" autoplay playsinline>
+                        <source src="video/allin.mp4" type="video/mp4">
+                    </video>`;
+                
                 document.getElementById('all-in-overlay').style.display = 'flex';
+                
+                // 設定 2.5 秒後關閉
                 setTimeout(() => { 
                     document.getElementById('all-in-overlay').style.display = 'none'; 
                     videoBox.innerHTML = ''; 
-                }, 3500);
+                }, 2500);
+                
                 lastEffectId = localData.allInTrigger;
             }
 
