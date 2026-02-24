@@ -159,24 +159,24 @@
     db.ref(".info/serverTimeOffset").on("value", s => serverOffset = s.val());
     function getServerNow() { return Date.now() + serverOffset; }
 
-    // 每秒更新自己的活躍時間
+    // 每 5 秒更新活躍時間
     setInterval(() => {
         if (myId && localData.players && localData.players[myId]) {
             gameRef.child('players/'+myId).update({ lastActive: getServerNow() });
         }
     }, 5000);
 
-    // 核心循環：監控超時與清理離線玩家
+    // 核心循環：每秒檢查狀態與清理
     setInterval(() => {
         if (!localData.players) return;
         const now = getServerNow();
         const players = localData.players;
         const pKeys = Object.keys(players);
         
-        // 房主端負責：清理超過 15 秒沒更新 lastActive 的幽靈玩家
+        // 房主負責持續清理超過 60 秒沒更新的玩家
         if (pKeys[0] === myId) {
             pKeys.forEach(id => {
-                if (id !== myId && (!players[id].lastActive || now - players[id].lastActive > 15000)) {
+                if (id !== myId && (!players[id].lastActive || now - players[id].lastActive > 60000)) {
                     gameRef.child('players/' + id).remove();
                 }
             });
@@ -195,7 +195,7 @@
             return;
         }
 
-        // 60 秒操作倒數
+        // 倒數計時與超時踢除
         if (pKeys[0] === myId && localData.lastActionTime) {
             const diff = (now - localData.lastActionTime) / 1000;
             if (diff > 60.5) {
@@ -225,16 +225,15 @@
             const data = snap.val() || {};
             const players = data.players || {};
             
-            // 【關鍵修正】進入前先清理 10 秒以上未活動的人（含 IP/紀錄清理邏輯）
+            // 【修改】進入大廳前清理超過 60 秒未活動的玩家
             Object.keys(players).forEach(id => {
-                if (!players[id].lastActive || now - players[id].lastActive > 10000) {
+                if (!players[id].lastActive || now - players[id].lastActive > 60000) {
                     delete players[id];
                     gameRef.child('players/' + id).remove();
                 }
             });
 
             const pKeys = Object.keys(players);
-            // 如果沒人了，強制重置房間
             if (pKeys.length === 0) {
                 gameRef.update({ gameStarted: false, c1:null, c2:null, c3:null, currentPlayerKey: null });
             }
