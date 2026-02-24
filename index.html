@@ -11,7 +11,7 @@
         body { background: var(--dark-green); color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 10px; overflow-x: hidden; }
         .game-container { max-width: 1000px; margin: auto; }
         
-        /* 玩家清單與 UI */
+        /* 玩家列表 UI */
         .player-toggle-btn { background: rgba(0,0,0,0.5); border: 1px solid var(--gold); color: var(--gold); padding: 5px 15px; border-radius: 20px; margin-bottom: 10px; cursor: pointer; }
         .player-list { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 50px; }
         .player-card { background: rgba(0,0,0,0.8); padding: 8px; border-radius: 10px; border: 2px solid #444; width: 115px; position: relative; font-size: 0.9rem; }
@@ -159,34 +159,51 @@
     db.ref(".info/serverTimeOffset").on("value", s => serverOffset = s.val());
     function getServerNow() { return Date.now() + serverOffset; }
 
+    // 每秒更新自己的活躍時間
+    setInterval(() => {
+        if (myId && localData.players && localData.players[myId]) {
+            gameRef.child('players/'+myId).update({ lastActive: getServerNow() });
+        }
+    }, 5000);
+
+    // 核心循環：監控超時與清理離線玩家
     setInterval(() => {
         if (!localData.players) return;
-        const pKeys = Object.keys(localData.players);
+        const now = getServerNow();
+        const players = localData.players;
+        const pKeys = Object.keys(players);
         
-        // 【修正】若房間沒人，重設狀態防止卡死
+        // 房主端負責：清理超過 15 秒沒更新 lastActive 的幽靈玩家
+        if (pKeys[0] === myId) {
+            pKeys.forEach(id => {
+                if (id !== myId && (!players[id].lastActive || now - players[id].lastActive > 15000)) {
+                    gameRef.child('players/' + id).remove();
+                }
+            });
+        }
+
         if (pKeys.length === 0 && localData.gameStarted) {
-            gameRef.update({ gameStarted: false, currentPlayerKey: null, c1:null, c2:null, c3:null });
+            gameRef.update({ gameStarted: false, c1:null, c2:null, c3:null });
             return;
         }
 
         if (!localData.gameStarted) return;
 
         const cpKey = localData.currentPlayerKey;
-        // 【修正】如果當前玩家不見了，強制切換給房主或第一順位
-        if (cpKey && !localData.players[cpKey]) {
+        if (cpKey && !players[cpKey]) {
             gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: pKeys[0], lastActionTime: firebase.database.ServerValue.TIMESTAMP });
             return;
         }
 
-        // 倒數與自動踢人 (僅房主端運算)
+        // 60 秒操作倒數
         if (pKeys[0] === myId && localData.lastActionTime) {
-            const diff = (getServerNow() - localData.lastActionTime) / 1000;
+            const diff = (now - localData.lastActionTime) / 1000;
             if (diff > 60.5) {
                 gameRef.child('players/' + cpKey).remove().then(() => {
                     const nextKeys = Object.keys(localData.players).filter(k => k !== cpKey);
                     gameRef.update({ 
                         gameState: 'waiting_deal', currentPlayerKey: nextKeys[0] || null, 
-                        statusMsg: "超時踢除", lastActionTime: firebase.database.ServerValue.TIMESTAMP 
+                        statusMsg: "玩家超時踢除", lastActionTime: firebase.database.ServerValue.TIMESTAMP 
                     });
                 });
             }
@@ -203,12 +220,21 @@
         const name = document.getElementById('my-name').value.trim();
         if (!name) return alert("請輸入暱稱");
         
+        const now = getServerNow();
         gameRef.once('value', snap => {
             const data = snap.val() || {};
             const players = data.players || {};
-            const pKeys = Object.keys(players);
+            
+            // 【關鍵修正】進入前先清理 10 秒以上未活動的人（含 IP/紀錄清理邏輯）
+            Object.keys(players).forEach(id => {
+                if (!players[id].lastActive || now - players[id].lastActive > 10000) {
+                    delete players[id];
+                    gameRef.child('players/' + id).remove();
+                }
+            });
 
-            // 【修正】如果進入時發現沒人，但 gameStarted 是 true，強制重置
+            const pKeys = Object.keys(players);
+            // 如果沒人了，強制重置房間
             if (pKeys.length === 0) {
                 gameRef.update({ gameStarted: false, c1:null, c2:null, c3:null, currentPlayerKey: null });
             }
@@ -219,9 +245,8 @@
                 localStorage.setItem('dg_id', myId);
             }
             
-            gameRef.child('players/'+myId).update({ name: name, balance: 0, lastActive: getServerNow() });
+            gameRef.child('players/'+myId).update({ name: name, balance: 0, lastActive: now });
             
-            // 讀取當前時間標記，防止看到舊動畫
             if(data.allInTrigger) lastEffectId = data.allInTrigger;
             if(data.lastEmoji) lastEmojiTime = data.lastEmoji.time;
             
@@ -281,6 +306,7 @@
 
     function renderPlayers() {
         const area = document.getElementById('player-area');
+        if (!area) return;
         area.innerHTML = '';
         const players = localData.players || {};
         const pKeys = Object.keys(players);
