@@ -19,10 +19,8 @@
         .player-balance { color: #2ecc71; font-weight: bold; }
         .timer-display { color: #ff7675; font-size: 0.8rem; font-weight: bold; margin-top: 3px; }
         
-        /* 皇冠與踢人按鈕邏輯 */
         .is-host-icon { color: var(--gold); margin-left: 3px; }
         .kick-btn { position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; border-radius: 50%; width: 22px; height: 22px; border: 1px solid white; display: none; cursor: pointer; font-size: 14px; font-weight: bold; line-height: 18px; z-index: 5; }
-        /* 只有房主能看到踢人按鈕，但房主不能看到自己的踢人按鈕 */
         body.is-host .player-card:not(.is-me) .kick-btn { display: block; }
 
         .board { background: radial-gradient(circle, #2d5a3c 0%, #1a472a 100%); padding: 20px; border-radius: 40px; border: 4px solid var(--gold); margin-top: 10px; }
@@ -32,18 +30,15 @@
         .card.hidden { background: #2c3e50; color: transparent; border: 1px solid #7f8c8d; }
         .card.red { color: var(--card-red); }
 
-        /* 設定區 */
         .setup-box { background: rgba(0,0,0,0.8); padding: 20px; border-radius: 20px; border: 2px solid var(--gold); margin-bottom: 15px; }
         .input-group { margin: 10px 0; display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
         input[type="number"], select { padding: 8px; border-radius: 5px; border: none; text-align: center; }
         button { padding: 10px 15px; cursor: pointer; background: var(--gold); border: none; font-weight: bold; border-radius: 6px; color: #1a472a; margin: 3px; }
 
-        /* 表情廣播 */
         #emoji-broadcast-area { position: fixed; top: 35%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 10000; }
         .broadcast-item { background: rgba(0,0,0,0.85); color: var(--gold); padding: 10px 20px; border-radius: 30px; margin-bottom: 5px; font-weight: bold; border: 2px solid var(--gold); animation: fadeUp 2.5s forwards; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
         @keyframes fadeUp { 0% { opacity: 0; transform: translateY(20px); } 15% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-50px); } }
 
-        /* 籌碼 */
         .chip-container { display: flex; justify-content: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
         .chip-btn { background: none; border: none; padding: 0; cursor: pointer; transition: 0.1s; }
         .chip-btn img { width: 55px; height: 55px; border-radius: 50%; box-shadow: 0 4px 6px rgba(0,0,0,0.5); object-fit: cover; }
@@ -158,36 +153,43 @@
 
     let myId = localStorage.getItem('dg_id') || "";
     let localData = {};
-    let lastEffectId = "INITIAL"; // 避免進場觸發舊動畫
-    let lastEmojiTime = Date.now(); // 避免進場觸發舊表情
+    let lastEffectId = "INITIAL";
+    let lastEmojiTime = 0;
     let emojiSpamCount = 0;
     let emojiResetTimer = null;
+    let serverOffset = 0; // 用於校正伺服器時間誤差
     const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
 
-    // 核心循環：監控倒數與房主邏輯
+    // 取得伺服器時間偏移量
+    db.ref(".info/serverTimeOffset").on("value", (snap) => {
+        serverOffset = snap.val();
+    });
+
+    function getServerNow() {
+        return Date.now() + serverOffset;
+    }
+
     setInterval(() => {
         if (!localData.players) return;
         const pKeys = Object.keys(localData.players);
         
-        // 若完全沒人，系統還原
         if (pKeys.length === 0 && localData.gameStarted) {
-            gameRef.update({ gameStarted: false, c1:null, c2:null, c3:null });
+            gameRef.update({ gameStarted: false });
             return;
         }
 
         if (!localData.gameStarted) return;
 
         const currentPlayerId = localData.currentPlayerKey;
-        // 如果當前玩家不見了，自動換下一位
         if (currentPlayerId && !localData.players[currentPlayerId]) {
-            const nextK = pKeys[0];
-            gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: nextK, lastActionTime: firebase.database.ServerValue.TIMESTAMP });
+            gameRef.update({ gameState: 'waiting_deal', currentPlayerKey: pKeys[0], lastActionTime: firebase.database.ServerValue.TIMESTAMP });
             return;
         }
 
-        // 倒數計時判定 (僅房主端執行踢除減少衝突)
+        // 倒數計時判定
         if (pKeys[0] === myId && localData.lastActionTime) {
-            const diff = (Date.now() - localData.lastActionTime) / 1000;
+            const now = getServerNow();
+            const diff = (now - localData.lastActionTime) / 1000;
             if (diff > 60.5) {
                 gameRef.child('players/' + currentPlayerId).remove().then(() => {
                     const remainingKeys = Object.keys(localData.players).filter(k => k !== currentPlayerId);
@@ -195,7 +197,7 @@
                     gameRef.update({ 
                         gameState: 'waiting_deal', 
                         currentPlayerKey: nextK, 
-                        statusMsg: "玩家超時被踢出", 
+                        statusMsg: "玩家超時踢出", 
                         lastActionTime: firebase.database.ServerValue.TIMESTAMP 
                     });
                 });
@@ -219,8 +221,9 @@
                 myId = newRef.key;
                 localStorage.setItem('dg_id', myId);
             }
-            // 進入時同步初始化時間戳，防止舊動畫
-            gameRef.child('players/'+myId).update({ name: nameInput, lastActive: Date.now() });
+            gameRef.child('players/'+myId).update({ name: nameInput, lastActive: getServerNow() });
+            
+            // 初始化時標記當前時間，防止舊動畫/表情
             gameRef.once('value', s => {
                 const d = s.val();
                 if(d) {
@@ -242,13 +245,11 @@
             const isHost = (pKeys[0] === myId);
             document.body.className = isHost ? "is-host" : "";
 
-            // 表情監聽 (過濾舊表情)
             if (localData.lastEmoji && localData.lastEmoji.time > lastEmojiTime) {
                 showEmojiBroadcast(localData.lastEmoji.name, localData.lastEmoji.icon);
                 lastEmojiTime = localData.lastEmoji.time;
             }
 
-            // All-in 監聽 (過濾舊動畫)
             if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
                 const videoBox = document.getElementById('video-box');
                 videoBox.innerHTML = `<video width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
@@ -309,7 +310,8 @@
             div.className = `player-card ${isActive ? 'active' : ''} ${isMe ? 'is-me' : ''}`;
             
             let crown = isRoomHost ? `<span class="is-host-icon">👑</span>` : "";
-            let timer = (isActive && localData.lastActionTime) ? `<div class="timer-display">⏱ ${Math.max(0, 60 - Math.floor((Date.now() - localData.lastActionTime) / 1000))}s</div>` : "";
+            // 使用校正後的伺服器現在時間 getServerNow()
+            let timer = (isActive && localData.lastActionTime) ? `<div class="timer-display">⏱ ${Math.max(0, 60 - Math.floor((getServerNow() - localData.lastActionTime) / 1000))}s</div>` : "";
             
             div.innerHTML = `
                 <button class="kick-btn" onclick="kickPlayer('${id}')">✕</button>
@@ -341,7 +343,6 @@
         let deck = localData.deck || [];
         if (deck.length < 3) deck = generateDecks(localData.deckCount || 2);
         const c1 = deck.pop(); const c2 = deck.pop();
-        // 發牌動作，強制刷新倒數計時
         gameRef.update({ 
             deck: deck, c1: c1, c2: c2, c3: null, 
             gameState: 'waiting_shoot', 
@@ -373,7 +374,6 @@
 
         const pKeys = Object.keys(localData.players);
         let nextK = pKeys[(pKeys.indexOf(myId) + 1) % pKeys.length];
-        // 動作完成，強制刷新倒數給下一家
         let updates = { 
             [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null, 
             statusMsg: msg, gameState: 'waiting_deal', 
@@ -402,7 +402,7 @@
         document.getElementById('guess-buttons').style.display = isSame ? 'inline-block' : 'none';
     }
 
-    function setAllIn() { if (confirm("🔥 確定 ALL IN？")) { gameRef.update({ allInTrigger: Date.now().toString() }); document.getElementById('bet-amount').value = localData.pool; } }
+    function setAllIn() { if (confirm("🔥 確定 ALL IN？")) { gameRef.update({ allInTrigger: getServerNow().toString() }); document.getElementById('bet-amount').value = localData.pool; } }
     function updateCard(id, c) { const el = document.getElementById(id); if (!c) { el.classList.add('hidden'); el.innerText = '?'; } else { el.classList.remove('hidden'); el.innerText = `${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit === '♥' || c.suit === '♦'); } }
     function generateDecks(count) { let deck = []; const suits = ['♠', '♥', '♦', '♣']; for (let i = 0; i < count; i++) suits.forEach(s => { for (let v = 1; v <= 13; v++) deck.push({ val: v, suit: s, label: labels[v] || v }); }); return deck.sort(() => Math.random() - 0.5); }
     function kickPlayer(id) { if(confirm("確定剔除該玩家？")) gameRef.child('players/'+id).remove(); }
