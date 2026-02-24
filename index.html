@@ -34,6 +34,13 @@
         .is-host .kick-btn { display: block; }
         #all-in-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
         #video-box { overflow: hidden; border-radius: 20px; box-shadow: 0 0 30px var(--gold); }
+        
+        /* 表情包樣式 */
+        .emoji-bar { margin: 10px 0; }
+        .emoji-btn { font-size: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid #555; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; padding: 0; transition: 0.2s; }
+        .emoji-btn:hover { transform: scale(1.2); background: rgba(212, 175, 55, 0.2); }
+        .floating-emoji { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); font-size: 2.5rem; animation: emojiPop 0.5s ease-out; z-index: 10; }
+        @keyframes emojiPop { 0% { opacity: 0; transform: translateX(-50%) scale(0.5); } 50% { opacity: 1; transform: translateX(-50%) scale(1.2); } 100% { transform: translateX(-50%) scale(1); } }
     </style>
 </head>
 <body>
@@ -73,6 +80,15 @@
     </div>
     <div id="player-area" class="player-list"></div>
     <div id="main-board" class="board" style="display:none;">
+        
+        <div class="emoji-bar">
+            <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+            <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
+            <button class="emoji-btn" onclick="sendEmoji('💸')">💸</button>
+            <button class="emoji-btn" onclick="sendEmoji('💩')">💩</button>
+            <button class="emoji-btn" onclick="sendEmoji('🃏')">🃏</button>
+        </div>
+
         <div class="pool-display">💰 $<span id="pool-val">0</span></div>
         <div id="status-msg">等待發牌...</div>
         <div class="cards">
@@ -123,11 +139,13 @@
     let lastEffectId = "";
     const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
 
+    // 踢人功能改為全體玩家監控
     setInterval(() => {
         if (!localData.gameStarted || !localData.players) return;
         const pKeys = Object.keys(localData.players);
         const currentPlayerId = localData.currentPlayerKey;
 
+        // 如果目前輪到的玩家已經消失在玩家清單中（被手動刪除或發生錯誤）
         if (currentPlayerId && !localData.players[currentPlayerId]) {
             gameRef.update({
                 gameState: 'waiting_deal',
@@ -141,20 +159,26 @@
 
         renderPlayers();
 
-        if (pKeys[0] === myId && localData.lastActionTime) {
+        // 核心邏輯：任何人都可以判斷超時。
+        // 為避免多人同時發送導致 Firebase 混亂，我們讓「在線的第一個人」負責發送更新
+        if (pKeys.includes(myId) && localData.lastActionTime) {
             const diff = (Date.now() - localData.lastActionTime) / 1000;
             if (diff > 60) {
                 const afkId = currentPlayerId;
                 const nextK = pKeys[(pKeys.indexOf(afkId) + 1) % pKeys.length];
-                gameRef.child('players/' + afkId).remove().then(() => {
-                    gameRef.update({
-                        gameState: 'waiting_deal',
-                        currentPlayerKey: nextK,
-                        statusMsg: "掛機踢除",
-                        lastActionTime: Date.now(),
-                        c1: null, c2: null, c3: null
+                
+                // 只有名單中第一個（目前在線的人）負責執行 Firebase 刪除動作
+                if (pKeys[0] === myId) {
+                    gameRef.child('players/' + afkId).remove().then(() => {
+                        gameRef.update({
+                            gameState: 'waiting_deal',
+                            currentPlayerKey: nextK,
+                            statusMsg: "超時踢除玩家",
+                            lastActionTime: Date.now(),
+                            c1: null, c2: null, c3: null
+                        });
                     });
-                });
+                }
             }
         }
     }, 1000);
@@ -163,22 +187,17 @@
         const nameInput = document.getElementById('my-name').value.trim();
         if (!nameInput) return alert("請輸入暱稱");
 
-        // 房主保護核心：先從資料庫抓取現有名單
         gameRef.child('players').once('value', snap => {
             const players = snap.val() || {};
-            
-            // 如果原本存的 ID 已經被踢掉了（不在名單內），就強制作廢舊 ID，生成新 ID
             if (myId && !players[myId]) {
                 myId = "";
                 localStorage.removeItem('dg_id');
             }
-
             if (!myId) {
                 const newRef = gameRef.child('players').push();
                 myId = newRef.key;
                 localStorage.setItem('dg_id', myId);
             }
-
             gameRef.child('players/'+myId).update({ name: nameInput, lastActive: Date.now() });
             gameRef.once('value', snap2 => {
                 const d = snap2.val();
@@ -192,7 +211,6 @@
     function startListening() {
         gameRef.on('value', snap => {
             localData = snap.val() || {};
-            // 如果自己被剔除了，強制回到登入畫面
             if (!localData.players || !localData.players[myId]) {
                 document.getElementById('setup-area').style.display = 'block';
                 document.getElementById('main-board').style.display = 'none';
@@ -204,21 +222,14 @@
             const isHost = (pKeys[0] === myId);
             document.body.className = isHost ? "is-host" : "";
 
-            // --- 影片觸發：讀取 video/allin.mp4 播放 2.5 秒 ---
             if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
                 const videoBox = document.getElementById('video-box');
-                videoBox.innerHTML = `
-                    <video id="allInVdo" width="315" height="560" autoplay playsinline>
-                        <source src="video/allin.mp4" type="video/mp4">
-                    </video>`;
-                
+                videoBox.innerHTML = `<video id="allInVdo" width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
                 document.getElementById('all-in-overlay').style.display = 'flex';
-                
                 setTimeout(() => { 
                     document.getElementById('all-in-overlay').style.display = 'none'; 
                     videoBox.innerHTML = ''; 
                 }, 2500);
-                
                 lastEffectId = localData.allInTrigger;
             }
 
@@ -247,16 +258,29 @@
             const isActive = (id === localData.currentPlayerKey);
             const div = document.createElement('div');
             div.className = `player-card ${isActive ? 'active' : ''}`;
+            
+            let emojiHtml = p.emoji ? `<div class="floating-emoji">${p.emoji}</div>` : "";
             let timerHtml = "";
             if (isActive && localData.lastActionTime) {
                 const timeLeft = Math.max(0, 60 - Math.floor((now - localData.lastActionTime) / 1000));
                 timerHtml = `<div class="timer-display">⏱ ${timeLeft}s</div>`;
             }
+            
             div.innerHTML = `<button class="kick-btn" onclick="kickPlayer('${id}')">✕</button>
+                ${emojiHtml}
                 <b>${p.name}</b>${Object.keys(players)[0] === id ? ' 👑' : ''}<br>
                 <span class="player-balance ${p.balance < 0 ? 'balance-neg' : ''}">$${p.balance}</span>${timerHtml}`;
             area.appendChild(div);
         });
+    }
+
+    // 表情包發送
+    function sendEmoji(emojiIcon) {
+        gameRef.child(`players/${myId}`).update({ emoji: emojiIcon });
+        // 3秒後自動清除
+        setTimeout(() => {
+            gameRef.child(`players/${myId}`).update({ emoji: null });
+        }, 3000);
     }
 
     function hostStartGame() {
