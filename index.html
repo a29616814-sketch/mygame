@@ -26,9 +26,54 @@
         .board { background: radial-gradient(circle, #2d5a3c 0%, #1a472a 100%); padding: 20px; border-radius: 40px; border: 4px solid var(--gold); margin-top: 10px; }
         .pool-display { font-size: 40px; color: #f1c40f; font-weight: bold; margin: 5px 0; }
         .cards { display: flex; justify-content: center; gap: 10px; margin: 15px 0; height: 140px; }
-        .card { width: 90px; height: 130px; background: white; border-radius: 10px; color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; border: 2px solid #333; box-shadow: 3px 3px 8px rgba(0,0,0,0.3); white-space: pre-wrap; }
+
+        /* ── 優化 4：牌標籤說明 ── */
+        .card-wrapper { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .card-label { font-size: 0.75rem; color: #aaa; letter-spacing: 1px; text-transform: uppercase; height: 16px; }
+
+        .card { width: clamp(70px, 15vw, 90px); height: 130px; background: white; border-radius: 10px; color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; border: 2px solid #333; box-shadow: 3px 3px 8px rgba(0,0,0,0.3); white-space: pre-wrap; transition: transform 0.2s; }
         .card.hidden { background: #2c3e50; color: transparent; border: 1px solid #7f8c8d; }
         .card.red { color: var(--card-red); }
+
+        /* ── 優化 1：勝負動畫 ── */
+        @keyframes winPulse {
+            0%   { transform: scale(1); box-shadow: 3px 3px 8px rgba(0,0,0,0.3); }
+            40%  { transform: scale(1.18); box-shadow: 0 0 30px #2ecc71, 0 0 60px #2ecc71; }
+            100% { transform: scale(1); box-shadow: 3px 3px 8px rgba(0,0,0,0.3); }
+        }
+        @keyframes losePulse {
+            0%   { transform: scale(1); }
+            20%  { transform: translateX(-8px) scale(1.05); box-shadow: 0 0 25px var(--card-red); }
+            40%  { transform: translateX(8px) scale(1.05); box-shadow: 0 0 25px var(--card-red); }
+            60%  { transform: translateX(-5px); }
+            80%  { transform: translateX(5px); }
+            100% { transform: scale(1); box-shadow: 3px 3px 8px rgba(0,0,0,0.3); }
+        }
+        @keyframes crashPulse {
+            0%   { transform: scale(1); }
+            30%  { transform: scale(1.2) rotate(-5deg); box-shadow: 0 0 40px #f39c12, 0 0 80px #f39c12; }
+            60%  { transform: scale(1.1) rotate(5deg); }
+            100% { transform: scale(1); }
+        }
+        .card.anim-win  { animation: winPulse 0.7s ease-out; }
+        .card.anim-lose { animation: losePulse 0.7s ease-out; }
+        .card.anim-crash{ animation: crashPulse 0.7s ease-out; }
+
+        /* 結果橫幅 */
+        #result-banner { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5); z-index: 8000; background: rgba(0,0,0,0.92); border-radius: 20px; padding: 20px 40px; border: 3px solid var(--gold); text-align: center; transition: transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.35s; opacity: 0; pointer-events: none; }
+        #result-banner.show { display: block; transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        #result-banner .rb-emoji { font-size: 3rem; }
+        #result-banner .rb-text  { font-size: 1.8rem; font-weight: bold; margin: 5px 0; }
+        #result-banner .rb-amount{ font-size: 2.2rem; font-weight: bold; }
+        #result-banner .rb-amount.positive { color: #2ecc71; }
+        #result-banner .rb-amount.negative { color: var(--card-red); }
+
+        /* 彩紙 */
+        .confetti-piece { position: fixed; width: 10px; height: 14px; top: -20px; border-radius: 2px; pointer-events: none; animation: confettiFall linear forwards; z-index: 7999; }
+        @keyframes confettiFall {
+            0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
 
         .setup-box { background: rgba(0,0,0,0.8); padding: 20px; border-radius: 20px; border: 2px solid var(--gold); margin-bottom: 15px; }
         .input-group { margin: 10px 0; display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -38,19 +83,89 @@
         #emoji-broadcast-area { position: fixed; top: 35%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 10000; }
         .broadcast-item { background: rgba(0,0,0,0.85); color: var(--gold); padding: 10px 20px; border-radius: 30px; margin-bottom: 5px; font-weight: bold; border: 2px solid var(--gold); animation: fadeUp 2.5s forwards; }
 
+        /* ── 優化 4：籌碼自適應 ── */
         .chip-container { display: flex; justify-content: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
-        .chip-btn { background: none; border: none; padding: 0; cursor: pointer; transition: 0.1s; }
-        .chip-btn img { width: 55px; height: 55px; border-radius: 50%; }
+        .chip-btn { background: none; border: none; padding: 0; cursor: pointer; transition: transform 0.1s; }
+        .chip-btn:active { transform: scale(0.9); }
+        .chip-btn img { width: clamp(48px, 13vw, 65px); height: clamp(48px, 13vw, 65px); border-radius: 50%; }
         #bet-amount { background: #222; color: var(--gold); border: 2px solid var(--gold); font-size: 1.3rem; width: 100px !important; border-radius: 8px; }
 
         .emoji-btn { font-size: 1.5rem; background: rgba(0,0,0,0.3); border: 1px solid #555; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; }
+
+        /* ── 優化 2：ALL IN 遊戲內確認 ── */
+        #all-in-confirm-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.88); z-index: 9000;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        #all-in-confirm-overlay.show { display: flex; }
+        #all-in-confirm-overlay .allin-box {
+            background: linear-gradient(135deg, #1a1a1a, #2c0000);
+            border: 3px solid var(--card-red); border-radius: 24px;
+            padding: 30px 40px; text-align: center;
+            animation: alinPop 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+        }
+        @keyframes alinPop { from { transform: scale(0.6); opacity:0; } to { transform: scale(1); opacity:1; } }
+        #all-in-confirm-overlay h2 { font-size: 2rem; color: var(--card-red); margin: 0 0 8px; }
+        #all-in-confirm-overlay p  { color: #ccc; margin: 0 0 20px; }
+        #all-in-confirm-overlay .allin-amount { font-size: 2.5rem; color: var(--gold); font-weight: bold; margin-bottom: 20px; }
+        .allin-yes { background: var(--card-red) !important; color: white !important; font-size: 1.1rem !important; padding: 12px 30px !important; }
+        .allin-no  { background: #555 !important; color: white !important; font-size: 1.1rem !important; padding: 12px 30px !important; }
+
         #all-in-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; }
+
+        /* ── 優化 4：輪到時的提示 ── */
+        @keyframes myTurnGlow {
+            0%, 100% { box-shadow: 0 0 12px var(--gold); }
+            50%       { box-shadow: 0 0 30px var(--gold), 0 0 60px rgba(212,175,55,0.4); }
+        }
+        #main-board.my-turn { animation: myTurnGlow 1.5s ease-in-out infinite; }
+        #my-turn-toast { display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--gold); color: #1a472a; font-weight: bold; font-size: 1.1rem; padding: 10px 28px; border-radius: 30px; z-index: 8500; box-shadow: 0 4px 20px rgba(0,0,0,0.5); animation: toastBounce 0.4s ease-out; }
+        @keyframes toastBounce { from { transform: translateX(-50%) translateY(40px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
+
+        /* ── 補底池通知 ── */
+        #refill-toast { display: none; position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); color: var(--gold); border: 2px solid var(--gold); font-size: 1rem; padding: 10px 24px; border-radius: 20px; z-index: 8500; text-align: center; }
     </style>
 </head>
 <body>
 
 <div id="emoji-broadcast-area"></div>
+
+<!-- ── 優化 1：結果橫幅 ── -->
+<div id="result-banner">
+    <div class="rb-emoji" id="rb-emoji">🎉</div>
+    <div class="rb-text"  id="rb-text">射進！</div>
+    <div class="rb-amount" id="rb-amount">+$0</div>
+</div>
+
+<!-- ── 優化 2：ALL IN 遊戲內確認 ── -->
+<div id="all-in-confirm-overlay">
+    <div class="allin-box">
+        <h2>🔥 ALL IN 確認</h2>
+        <p>你確定要押上全部彩金？</p>
+        <div class="allin-amount" id="allin-pool-preview">$0</div>
+        <div style="display:flex; gap:16px; justify-content:center;">
+            <button class="allin-yes" onclick="confirmAllIn()">💥 我要全部！</button>
+            <button class="allin-no"  onclick="cancelAllIn()">取消</button>
+        </div>
+    </div>
+</div>
+
 <div id="all-in-overlay"><div id="video-box"></div><h1 style="color:var(--gold); margin-top: 20px;">我要全部！！！</h1></div>
+
+<!-- ── 補底池通知 ── -->
+<div id="refill-toast"></div>
+
+<!-- ── 輪到你的提示 ── -->
+<div id="my-turn-toast">🎯 輪到你了！</div>
+
+<!-- ── 音效（優化 1）── -->
+<audio id="sfx-win"   src="sfx/win.mp3"   preload="auto"></audio>
+<audio id="sfx-lose"  src="sfx/lose.mp3"  preload="auto"></audio>
+<audio id="sfx-crash" src="sfx/crash.mp3" preload="auto"></audio>
+<audio id="sfx-fold"  src="sfx/fold.mp3"  preload="auto"></audio>
+<audio id="sfx-allin" src="sfx/allin.mp3" preload="auto"></audio>
+<audio id="sfx-deal"  src="sfx/deal.mp3"  preload="auto"></audio>
 
 <div class="game-container">
     <h1>🏟️ 埔墘金龍門 Pro</h1>
@@ -95,10 +210,20 @@
         <div class="pool-display">💰 $<span id="pool-val">0</span></div>
         <div id="status-msg">等待發牌...</div>
         
+        <!-- ── 優化 4：加牌標籤 ── -->
         <div class="cards">
-            <div id="c1" class="card hidden">?</div>
-            <div id="c3" class="card hidden">?</div>
-            <div id="c2" class="card hidden">?</div>
+            <div class="card-wrapper">
+                <div class="card-label">左柱</div>
+                <div id="c1" class="card hidden">?</div>
+            </div>
+            <div class="card-wrapper">
+                <div class="card-label">右柱</div>
+                <div id="c2" class="card hidden">?</div>
+            </div>
+            <div class="card-wrapper">
+                <div class="card-label">射門</div>
+                <div id="c3" class="card hidden">?</div>
+            </div>
         </div>
 
         <div id="controls">
@@ -121,6 +246,7 @@
                         <button onclick="handleAction('down')" style="background:#e67e22; color:white;">猜小</button>
                     </div>
                 </div>
+                <!-- ── 優化 2：ALL IN 改為遊戲內確認 ── -->
                 <button onclick="setAllIn()" style="background:var(--card-red); color:white;">ALL IN</button>
                 <button onclick="handleAction('fold')" style="background:#95a5a6;">放棄 ($<span id="fold-cost-ui">0</span>)</button>
             </div>
@@ -149,15 +275,85 @@
     const db = firebase.database();
     const gameRef = db.ref('dragonGate/room1');
 
-    let myId = localStorage.getItem('dg_id') || "";
+    // ── 優化 5：每次 joinRoom 都產生新 ID，不繼承 localStorage ──
+    let myId = "";
     let localData = {};
     let lastEffectId = "INITIAL";
     let lastEmojiTime = 0;
     let serverOffset = 0;
+    let wasMyturn = false;  // 追蹤上次是否輪到自己，避免重複 toast
     const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
 
     db.ref(".info/serverTimeOffset").on("value", s => serverOffset = s.val());
     function getServerNow() { return Date.now() + serverOffset; }
+
+    // ── 優化 1：音效播放工具 ──
+    function playSfx(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.currentTime = 0;
+        el.play().catch(() => {}); // 忽略瀏覽器自動播放限制錯誤
+    }
+
+    // ── 優化 1：結果橫幅 ──
+    function showResultBanner(emoji, text, amount, type) {
+        const banner = document.getElementById('result-banner');
+        document.getElementById('rb-emoji').innerText = emoji;
+        document.getElementById('rb-text').innerText = text;
+        const amtEl = document.getElementById('rb-amount');
+        amtEl.innerText = (amount >= 0 ? '+' : '') + '$' + amount;
+        amtEl.className = 'rb-amount ' + (amount >= 0 ? 'positive' : 'negative');
+        banner.classList.remove('show');
+        banner.style.display = 'block';
+        requestAnimationFrame(() => { requestAnimationFrame(() => { banner.classList.add('show'); }); });
+        setTimeout(() => { banner.classList.remove('show'); setTimeout(() => { banner.style.display = 'none'; }, 400); }, 2800);
+    }
+
+    // ── 優化 1：彩紙 ──
+    function spawnConfetti(count) {
+        const colors = ['#f1c40f','#2ecc71','#3498db','#e74c3c','#9b59b6','#fff'];
+        for (let i = 0; i < count; i++) {
+            const el = document.createElement('div');
+            el.className = 'confetti-piece';
+            el.style.left = Math.random() * 100 + 'vw';
+            el.style.background = colors[Math.floor(Math.random() * colors.length)];
+            el.style.animationDuration = (1.5 + Math.random() * 1.5) + 's';
+            el.style.animationDelay = (Math.random() * 0.5) + 's';
+            el.style.transform = `rotate(${Math.random()*360}deg)`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3500);
+        }
+    }
+
+    // ── 優化 1：牌動畫 ──
+    function animateCard(cardId, animClass) {
+        const el = document.getElementById(cardId);
+        if (!el) return;
+        el.classList.remove('anim-win','anim-lose','anim-crash');
+        void el.offsetWidth; // reflow
+        el.classList.add(animClass);
+        setTimeout(() => el.classList.remove(animClass), 800);
+    }
+
+    // ── 優化 4：輪到你的 Toast ──
+    let myTurnToastTimer = null;
+    function showMyTurnToast() {
+        const t = document.getElementById('my-turn-toast');
+        t.style.display = 'block';
+        if ('vibrate' in navigator) navigator.vibrate([150, 50, 150]);
+        clearTimeout(myTurnToastTimer);
+        myTurnToastTimer = setTimeout(() => { t.style.display = 'none'; }, 3000);
+    }
+
+    // ── 優化 3：補底池通知 ──
+    let refillToastTimer = null;
+    function showRefillToast(fee, count) {
+        const t = document.getElementById('refill-toast');
+        t.innerText = `💰 池金不足，每人補底 $${fee}（共補 $${fee * count}）`;
+        t.style.display = 'block';
+        clearTimeout(refillToastTimer);
+        refillToastTimer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+    }
 
     // 每 5 秒更新活躍時間
     setInterval(() => {
@@ -173,7 +369,6 @@
         const players = localData.players;
         const pKeys = Object.keys(players);
         
-        // 房主負責持續清理超過 60 秒沒更新的玩家
         if (pKeys[0] === myId) {
             pKeys.forEach(id => {
                 if (id !== myId && (!players[id].lastActive || now - players[id].lastActive > 60000)) {
@@ -195,7 +390,6 @@
             return;
         }
 
-        // 倒數計時與超時踢除
         if (pKeys[0] === myId && localData.lastActionTime) {
             const diff = (now - localData.lastActionTime) / 1000;
             if (diff > 60.5) {
@@ -225,7 +419,6 @@
             const data = snap.val() || {};
             const players = data.players || {};
             
-            // 【修改】進入大廳前清理超過 60 秒未活動的玩家
             Object.keys(players).forEach(id => {
                 if (!players[id].lastActive || now - players[id].lastActive > 60000) {
                     delete players[id];
@@ -238,11 +431,9 @@
                 gameRef.update({ gameStarted: false, c1:null, c2:null, c3:null, currentPlayerKey: null });
             }
 
-            if (!myId || !players[myId]) {
-                const newRef = gameRef.child('players').push();
-                myId = newRef.key;
-                localStorage.setItem('dg_id', myId);
-            }
+            // ── 優化 5：每次進入都強制產生新 ID，不重用 localStorage ──
+            const newRef = gameRef.child('players').push();
+            myId = newRef.key;
             
             gameRef.child('players/'+myId).update({ name: name, balance: 0, lastActive: now });
             
@@ -272,6 +463,7 @@
                 const v = document.getElementById('video-box');
                 v.innerHTML = `<video width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
                 document.getElementById('all-in-overlay').style.display = 'flex';
+                playSfx('sfx-allin');
                 setTimeout(() => { document.getElementById('all-in-overlay').style.display = 'none'; }, 2500);
                 lastEffectId = localData.allInTrigger;
             }
@@ -280,10 +472,16 @@
                 document.getElementById('setup-area').style.display = 'none';
                 document.getElementById('main-board').style.display = 'block';
                 renderUI(isHost);
+
+                // ── 優化 4：輪到自己才 toast，不重複觸發 ──
+                const isTurnNow = (localData.currentPlayerKey === myId);
+                if (isTurnNow && !wasMyturn) showMyTurnToast();
+                wasMyturn = isTurnNow;
             } else {
                 document.getElementById('setup-area').style.display = 'block';
                 document.getElementById('host-part').style.display = isHost ? 'block' : 'none';
                 document.getElementById('main-board').style.display = 'none';
+                wasMyturn = false;
             }
             document.getElementById('host-controls').style.display = isHost ? 'block' : 'none';
             renderPlayers();
@@ -341,6 +539,7 @@
     }
 
     function drawGoalPost() {
+        playSfx('sfx-deal');
         let deck = localData.deck || [];
         if (deck.length < 3) deck = generateDecks(localData.deckCount || 2);
         const c1 = deck.pop(); const c2 = deck.pop();
@@ -353,33 +552,104 @@
     function handleAction(type) {
         let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
         if (type !== 'fold' && (bet < 1 || bet > localData.pool)) return alert("請下注");
-        let p = localData.players[myId], nBal = p.balance, nPool = localData.pool, msg = "", c3 = null, deck = localData.deck || [];
+        let p = localData.players[myId], nBal = p.balance, nPool = localData.pool;
+        let msg = "", c3 = null, deck = localData.deck || [];
         
-        if (type === 'fold') { nBal -= localData.foldPenalty; nPool += localData.foldPenalty; msg = `${p.name} 棄牌`; }
-        else {
+        // 結果分析用的變數
+        let resultType = 'neutral'; // 'win' | 'lose' | 'crash' | 'fold'
+        let deltaAmount = 0;
+
+        if (type === 'fold') {
+            nBal -= localData.foldPenalty;
+            nPool += localData.foldPenalty;
+            msg = `${p.name} 棄牌`;
+            resultType = 'fold';
+            deltaAmount = -localData.foldPenalty;
+        } else {
             if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
             c3 = deck.pop();
-            const min = Math.min(localData.c1.val, localData.c2.val), max = Math.max(localData.c1.val, localData.c2.val);
+            const min = Math.min(localData.c1.val, localData.c2.val);
+            const max = Math.max(localData.c1.val, localData.c2.val);
+
             if (localData.c1.val === localData.c2.val) {
-                if (c3.val === localData.c1.val) { nBal -= bet*3; nPool += bet*3; msg = `撞柱 (-$${bet*3})`; }
-                else if ((type === 'up' && c3.val > localData.c1.val) || (type === 'down' && c3.val < localData.c1.val)) { nBal += bet; nPool -= bet; msg = `猜對 (+$${bet})`; }
-                else { nBal -= bet; nPool += bet; msg = `猜錯 (-$${bet})`; }
+                // 對子情況
+                if (c3.val === localData.c1.val) {
+                    nBal -= bet * 3; nPool += bet * 3;
+                    msg = `撞柱 (-$${bet * 3})`;
+                    resultType = 'crash'; deltaAmount = -(bet * 3);
+                } else if ((type === 'up' && c3.val > localData.c1.val) || (type === 'down' && c3.val < localData.c1.val)) {
+                    nBal += bet; nPool -= bet;
+                    msg = `猜對 (+$${bet})`;
+                    resultType = 'win'; deltaAmount = bet;
+                } else {
+                    nBal -= bet; nPool += bet;
+                    msg = `猜錯 (-$${bet})`;
+                    resultType = 'lose'; deltaAmount = -bet;
+                }
             } else {
-                if (c3.val > min && c3.val < max) { nBal += bet; nPool -= bet; msg = `射進 (+$${bet})`; }
-                else if (c3.val === min || c3.val === max) { nBal -= bet*2; nPool += bet*2; msg = `撞柱 (-$${bet*2})`; }
-                else { nBal -= bet; nPool += bet; msg = `沒進 (-$${bet})`; }
+                // 一般情況
+                if (c3.val > min && c3.val < max) {
+                    nBal += bet; nPool -= bet;
+                    msg = `射進 (+$${bet})`;
+                    resultType = 'win'; deltaAmount = bet;
+                } else if (c3.val === min || c3.val === max) {
+                    nBal -= bet * 2; nPool += bet * 2;
+                    msg = `撞柱 (-$${bet * 2})`;
+                    resultType = 'crash'; deltaAmount = -(bet * 2);
+                } else {
+                    nBal -= bet; nPool += bet;
+                    msg = `沒進 (-$${bet})`;
+                    resultType = 'lose'; deltaAmount = -bet;
+                }
             }
         }
+
         const pKeys = Object.keys(localData.players);
         let nextK = pKeys[(pKeys.indexOf(myId) + 1) % pKeys.length];
+
+        // ── 優化 3：autoRefill 修正版 ──
         let updates = { 
             [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null, 
             statusMsg: msg, gameState: 'waiting_deal', currentPlayerKey: nextK, 
             lastActionTime: firebase.database.ServerValue.TIMESTAMP 
         };
+
+        let refillTriggered = false;
         if (localData.autoRefill && nPool < localData.entryFee * pKeys.length) {
-            pKeys.forEach(k => { let b = (k === myId) ? nBal : localData.players[k].balance; updates[`players/${k}/balance`] = b - localData.entryFee; updates.pool += localData.entryFee; });
+            // 使用獨立變數累計，不直接修改 nPool
+            let totalRefill = 0;
+            pKeys.forEach(k => {
+                const currentBal = (k === myId) ? nBal : localData.players[k].balance;
+                updates[`players/${k}/balance`] = currentBal - localData.entryFee;
+                totalRefill += localData.entryFee;
+            });
+            updates.pool = nPool + totalRefill;
+            refillTriggered = true;
         }
+
+        // ── 優化 1：本機先播音效與動畫（不等 Firebase 回應，讓體驗更即時）──
+        if (resultType === 'win') {
+            playSfx('sfx-win');
+            animateCard('c3', 'anim-win');
+            spawnConfetti(40);
+            showResultBanner('🎉', type === 'up' ? '猜對！' : '射進！', deltaAmount, 'win');
+        } else if (resultType === 'crash') {
+            playSfx('sfx-crash');
+            animateCard('c3', 'anim-crash');
+            showResultBanner('💥', '撞柱！！', deltaAmount, 'crash');
+        } else if (resultType === 'lose') {
+            playSfx('sfx-lose');
+            animateCard('c3', 'anim-lose');
+            showResultBanner('😭', type === 'up' || type === 'down' ? '猜錯了' : '沒進...', deltaAmount, 'lose');
+        } else if (resultType === 'fold') {
+            playSfx('sfx-fold');
+            showResultBanner('🏳️', '棄牌', deltaAmount, 'fold');
+        }
+
+        if (refillTriggered) {
+            showRefillToast(localData.entryFee, pKeys.length);
+        }
+
         gameRef.update(updates);
         document.getElementById('bet-amount').value = 0;
     }
@@ -391,6 +661,11 @@
         document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 20;
         updateCard('c1', localData.c1); updateCard('c2', localData.c2); updateCard('c3', localData.c3);
         const isTurn = (localData.currentPlayerKey === myId);
+
+        // 輪到自己時主板邊框發光
+        const board = document.getElementById('main-board');
+        if (isTurn) { board.classList.add('my-turn'); } else { board.classList.remove('my-turn'); }
+
         document.getElementById('player-deal-btn').style.display = (isTurn && localData.gameState === 'waiting_deal') ? 'block' : 'none';
         document.getElementById('bet-controls').style.display = (isTurn && localData.gameState === 'waiting_shoot') ? 'block' : 'none';
         const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
@@ -398,10 +673,42 @@
         document.getElementById('guess-buttons').style.display = isSame ? 'inline-block' : 'none';
     }
 
-    function addBet(v) { let cur = parseInt(document.getElementById('bet-amount').value) || 0; document.getElementById('bet-amount').value = Math.min(cur + v, localData.pool); }
-    function setAllIn() { if (confirm("ALL IN？")) { gameRef.update({ allInTrigger: getServerNow().toString() }); document.getElementById('bet-amount').value = localData.pool; } }
-    function updateCard(id, c) { const el = document.getElementById(id); if (!c) { el.classList.add('hidden'); el.innerText = '?'; } else { el.classList.remove('hidden'); el.innerText = `${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit === '♥' || c.suit === '♦'); } }
-    function generateDecks(count) { let deck = []; const suits = ['♠', '♥', '♦', '♣']; for (let i = 0; i < count; i++) suits.forEach(s => { for (let v = 1; v <= 13; v++) deck.push({ val: v, suit: s, label: labels[v] || v }); }); return deck.sort(() => Math.random() - 0.5); }
+    function addBet(v) {
+        let cur = parseInt(document.getElementById('bet-amount').value) || 0;
+        document.getElementById('bet-amount').value = Math.min(cur + v, localData.pool);
+    }
+
+    // ── 優化 2：ALL IN 改為遊戲內確認面板 ──
+    function setAllIn() {
+        document.getElementById('allin-pool-preview').innerText = '$' + (localData.pool || 0);
+        document.getElementById('all-in-confirm-overlay').classList.add('show');
+    }
+    function cancelAllIn() {
+        document.getElementById('all-in-confirm-overlay').classList.remove('show');
+    }
+    function confirmAllIn() {
+        document.getElementById('all-in-confirm-overlay').classList.remove('show');
+        gameRef.update({ allInTrigger: getServerNow().toString() });
+        document.getElementById('bet-amount').value = localData.pool;
+    }
+
+    function updateCard(id, c) {
+        const el = document.getElementById(id);
+        if (!c) { el.classList.add('hidden'); el.innerText = '?'; }
+        else {
+            el.classList.remove('hidden');
+            el.innerText = `${c.suit}\n${c.label}`;
+            el.classList.toggle('red', c.suit === '♥' || c.suit === '♦');
+        }
+    }
+
+    function generateDecks(count) {
+        let deck = [];
+        const suits = ['♠', '♥', '♦', '♣'];
+        for (let i = 0; i < count; i++) suits.forEach(s => { for (let v = 1; v <= 13; v++) deck.push({ val: v, suit: s, label: labels[v] || v }); });
+        return deck.sort(() => Math.random() - 0.5);
+    }
+
     function kickPlayer(id) { if(confirm("剔除該玩家？")) gameRef.child('players/'+id).remove(); }
     function hostResetToLobby() { if(confirm("重製大廳狀態？")) gameRef.update({ gameStarted: false }); }
 </script>
