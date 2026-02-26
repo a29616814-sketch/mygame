@@ -473,7 +473,45 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
     box-shadow:0 0 40px rgba(255,100,0,0.6), 0 0 80px rgba(255,0,0,0.3);
 }
 
-/* ════ 其他 Toast ════ */
+/* ════ 籌碼SVG樣式 ════ */
+.chip-svg-wrap{ display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; }
+.chip-svg-wrap:active{ transform:scale(0.88); }
+.chip-svg{ filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5)); transition:filter 0.15s,transform 0.15s; }
+.chip-svg:hover{ filter:drop-shadow(0 0 10px rgba(212,175,55,0.7)) drop-shadow(0 3px 6px rgba(0,0,0,0.5)); transform:translateY(-2px); }
+
+/* ════ 洗牌動畫升級 ════ */
+#shuffle-overlay{
+    display:none; position:fixed; inset:0; z-index:8800;
+    background:rgba(0,0,0,0.88); flex-direction:column;
+    align-items:center; justify-content:center; gap:16px;
+    backdrop-filter:blur(6px);
+}
+#shuffle-overlay.show{ display:flex; }
+#shuffle-stage{ position:relative; width:280px; height:160px; }
+.shuf-card{
+    position:absolute; width:58px; height:82px;
+    border-radius:9px; border:2px solid rgba(100,160,255,0.6);
+    background:linear-gradient(135deg,#2a4f80,#1e3a64);
+    box-shadow:2px 2px 12px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.15);
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.6rem; color:rgba(255,255,255,0.2);
+    transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1), left 0.25s ease, top 0.25s ease;
+    will-change:transform,left,top;
+}
+.shuf-card::before{
+    content:''; position:absolute; inset:3px;
+    border:1px solid rgba(100,160,255,0.3); border-radius:6px;
+}
+#shuffle-label{
+    color:var(--gold); font-size:1.1rem; font-weight:bold;
+    letter-spacing:3px; text-shadow:0 0 16px rgba(212,175,55,0.7);
+    animation:shufflePulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes shufflePulse{ from{opacity:0.7;} to{opacity:1; text-shadow:0 0 24px rgba(212,175,55,1);} }
+#shuffle-progress{ width:200px; height:5px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; }
+#shuffle-progress-bar{ height:100%; width:0%; border-radius:4px; background:linear-gradient(90deg,var(--gold),#2ecc71); transition:width 0.4s ease; }
+#shuffle-player-name{ color:#aaa; font-size:0.8rem; letter-spacing:1px; }
+
 #refill-toast{ display:none; position:fixed; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); color:var(--gold); border:2px solid var(--gold); font-size:0.85rem; padding:7px 18px; border-radius:20px; z-index:8500; white-space:nowrap; }
 #reconnect-toast{ display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); color:var(--gold); border:2px solid var(--gold); border-radius:16px; padding:16px 28px; text-align:center; z-index:9500; font-size:1rem; }
 
@@ -513,11 +551,7 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 <div id="shuffle-overlay">
     <div id="shuffle-stage"></div>
     <div id="shuffle-label">🃏 洗牌中...</div>
-    <div id="shuffle-progress"><div id="shuffle-progress-bar"></div></div>
-</div>
-<div id="shuffle-overlay">
-    <div id="shuffle-stage"></div>
-    <div id="shuffle-label">🃏 洗牌中...</div>
+    <div id="shuffle-player-name"></div>
     <div id="shuffle-progress"><div id="shuffle-progress-bar"></div></div>
 </div>
 <div id="refill-toast"></div>
@@ -536,6 +570,8 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
     style="display:none;max-width:90vw;max-height:60vh;border-radius:12px;position:relative;z-index:1;
     box-shadow:0 0 40px rgba(255,100,0,0.6),0 0 80px rgba(255,0,0,0.3);">
 </video>
+<!-- ALL IN 音效 MP3 備援（當影片無聲時） -->
+<audio id="sfx-allin-mp3" src="allin.mp3" preload="auto"></audio>
 
 <!-- ══ 登入畫面 ══ -->
 <div id="login-screen">
@@ -644,11 +680,72 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
             <!-- 下注面板 -->
             <div id="bet-panel">
                 <div class="chip-row">
-                    <button class="chip-btn" onclick="addBet(10)"><img src="pic/m10.jpg" onerror="this.outerHTML='<div onclick=\'addBet(10)\' style=\'width:34px;height:34px;border-radius:50%;background:#27ae60;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>10</div>'"></button>
-                    <button class="chip-btn" onclick="addBet(50)"><img src="pic/m50.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(50)\' style=\'width:34px;height:34px;border-radius:50%;background:#2980b9;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>50</div>'"></button>
-                    <button class="chip-btn" onclick="addBet(100)"><img src="pic/m100.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(100)\' style=\'width:34px;height:34px;border-radius:50%;background:#8e44ad;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>100</div>'"></button>
-                    <button class="chip-btn" onclick="addBet(500)"><img src="pic/m500.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(500)\' style=\'width:34px;height:34px;border-radius:50%;background:#e67e22;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>500</div>'"></button>
-                    <button class="chip-btn" onclick="addBet(1000)"><img src="pic/m1000.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(1000)\' style=\'width:34px;height:34px;border-radius:50%;background:#c0392b;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>1K</div>'"></button>
+                    <!-- 10元：藍色邊 -->
+                    <div class="chip-svg-wrap" onclick="unlockAudio();addBet(10)">
+                      <svg class="chip-svg" width="48" height="48" viewBox="0 0 48 48">
+                        <circle cx="24" cy="24" r="22" fill="#1a5276" stroke="#3498db" stroke-width="3"/>
+                        <circle cx="24" cy="24" r="18" fill="none" stroke="#85c1e9" stroke-width="1.5" stroke-dasharray="5 3"/>
+                        <circle cx="24" cy="24" r="14" fill="#1f618d"/>
+                        <text x="24" y="29" text-anchor="middle" fill="white" font-size="11" font-weight="bold" font-family="Arial">10</text>
+                        <!-- 邊緣刻痕 -->
+                        <line x1="24" y1="2" x2="24" y2="7" stroke="#3498db" stroke-width="2.5"/>
+                        <line x1="24" y1="41" x2="24" y2="46" stroke="#3498db" stroke-width="2.5"/>
+                        <line x1="2" y1="24" x2="7" y2="24" stroke="#3498db" stroke-width="2.5"/>
+                        <line x1="41" y1="24" x2="46" y2="24" stroke="#3498db" stroke-width="2.5"/>
+                      </svg>
+                    </div>
+                    <!-- 50元：淡藍色邊 -->
+                    <div class="chip-svg-wrap" onclick="unlockAudio();addBet(50)">
+                      <svg class="chip-svg" width="48" height="48" viewBox="0 0 48 48">
+                        <circle cx="24" cy="24" r="22" fill="#154360" stroke="#76d7ea" stroke-width="3"/>
+                        <circle cx="24" cy="24" r="18" fill="none" stroke="#aed6f1" stroke-width="1.5" stroke-dasharray="5 3"/>
+                        <circle cx="24" cy="24" r="14" fill="#1a6080"/>
+                        <text x="24" y="29" text-anchor="middle" fill="white" font-size="11" font-weight="bold" font-family="Arial">50</text>
+                        <line x1="24" y1="2" x2="24" y2="7" stroke="#76d7ea" stroke-width="2.5"/>
+                        <line x1="24" y1="41" x2="24" y2="46" stroke="#76d7ea" stroke-width="2.5"/>
+                        <line x1="2" y1="24" x2="7" y2="24" stroke="#76d7ea" stroke-width="2.5"/>
+                        <line x1="41" y1="24" x2="46" y2="24" stroke="#76d7ea" stroke-width="2.5"/>
+                      </svg>
+                    </div>
+                    <!-- 100元：紅邊 -->
+                    <div class="chip-svg-wrap" onclick="unlockAudio();addBet(100)">
+                      <svg class="chip-svg" width="48" height="48" viewBox="0 0 48 48">
+                        <circle cx="24" cy="24" r="22" fill="#641e16" stroke="#e74c3c" stroke-width="3"/>
+                        <circle cx="24" cy="24" r="18" fill="none" stroke="#f1948a" stroke-width="1.5" stroke-dasharray="5 3"/>
+                        <circle cx="24" cy="24" r="14" fill="#922b21"/>
+                        <text x="24" y="29" text-anchor="middle" fill="white" font-size="10" font-weight="bold" font-family="Arial">100</text>
+                        <line x1="24" y1="2" x2="24" y2="7" stroke="#e74c3c" stroke-width="2.5"/>
+                        <line x1="24" y1="41" x2="24" y2="46" stroke="#e74c3c" stroke-width="2.5"/>
+                        <line x1="2" y1="24" x2="7" y2="24" stroke="#e74c3c" stroke-width="2.5"/>
+                        <line x1="41" y1="24" x2="46" y2="24" stroke="#e74c3c" stroke-width="2.5"/>
+                      </svg>
+                    </div>
+                    <!-- 500元：淡綠邊 -->
+                    <div class="chip-svg-wrap" onclick="unlockAudio();addBet(500)">
+                      <svg class="chip-svg" width="48" height="48" viewBox="0 0 48 48">
+                        <circle cx="24" cy="24" r="22" fill="#145a32" stroke="#58d68d" stroke-width="3"/>
+                        <circle cx="24" cy="24" r="18" fill="none" stroke="#abebc6" stroke-width="1.5" stroke-dasharray="5 3"/>
+                        <circle cx="24" cy="24" r="14" fill="#1e8449"/>
+                        <text x="24" y="29" text-anchor="middle" fill="white" font-size="10" font-weight="bold" font-family="Arial">500</text>
+                        <line x1="24" y1="2" x2="24" y2="7" stroke="#58d68d" stroke-width="2.5"/>
+                        <line x1="24" y1="41" x2="24" y2="46" stroke="#58d68d" stroke-width="2.5"/>
+                        <line x1="2" y1="24" x2="7" y2="24" stroke="#58d68d" stroke-width="2.5"/>
+                        <line x1="41" y1="24" x2="46" y2="24" stroke="#58d68d" stroke-width="2.5"/>
+                      </svg>
+                    </div>
+                    <!-- 1000元：金色邊 -->
+                    <div class="chip-svg-wrap" onclick="unlockAudio();addBet(1000)">
+                      <svg class="chip-svg" width="48" height="48" viewBox="0 0 48 48">
+                        <circle cx="24" cy="24" r="22" fill="#7d6608" stroke="#d4ac0d" stroke-width="3"/>
+                        <circle cx="24" cy="24" r="18" fill="none" stroke="#f9e79f" stroke-width="1.5" stroke-dasharray="5 3"/>
+                        <circle cx="24" cy="24" r="14" fill="#9a7d0a"/>
+                        <text x="24" y="29" text-anchor="middle" fill="white" font-size="10" font-weight="bold" font-family="Arial">1K</text>
+                        <line x1="24" y1="2" x2="24" y2="7" stroke="#d4ac0d" stroke-width="2.5"/>
+                        <line x1="24" y1="41" x2="24" y2="46" stroke="#d4ac0d" stroke-width="2.5"/>
+                        <line x1="2" y1="24" x2="7" y2="24" stroke="#d4ac0d" stroke-width="2.5"/>
+                        <line x1="41" y1="24" x2="46" y2="24" stroke="#d4ac0d" stroke-width="2.5"/>
+                      </svg>
+                    </div>
                 </div>
                 <div class="bet-divider"></div>
                 <div class="bet-actions">
@@ -1241,6 +1338,16 @@ function startListening(){
         const isHost=(pKeys[0]===myId);
         document.body.className=isHost?'is-host':'';
 
+        // 洗牌廣播（其他人洗牌時大家都看到）
+        if(localData.shufflingBy && localData.shufflingBy !== myName && !document.getElementById('shuffle-overlay').classList.contains('show')){
+            // 其他人在洗牌，顯示動畫給我看
+            const sTS = localData.shuffleTS||0;
+            if(sTS > (window._lastShuffleTS||0)){
+                window._lastShuffleTS = sTS;
+                playShuffleAnimation(()=>{}, localData.shufflingBy);
+            }
+        }
+
         // Emoji 廣播
         if(localData.lastEmoji&&localData.lastEmoji.time>lastEmojiTime){
             showEmojiBroadcast(localData.lastEmoji.name,localData.lastEmoji.icon);
@@ -1396,21 +1503,14 @@ function hostStartGame(){
         lastActionTime:firebase.database.ServerValue.TIMESTAMP, statusMsg:'新局開始，請洗牌'
     });
     chatRef.push({uid:'system',text:'遊戲開始！',time:firebase.database.ServerValue.TIMESTAMP});
-    // 切換後播洗牌動畫（畫面已是 game，overlay 可顯示）
+    // 切換後播洗牌動畫（廣播給所有人看）
     setTimeout(()=>{
-        playShuffleAnimation(()=>{
+        broadcastAndShuffle(()=>{
             gameRef.update({statusMsg:'請點牌庫發牌'});
         });
     },400);
 }
 
-function drawGoalPost(){
-    playSfx('sfx-deal');
-    let deck=localData.deck||[];
-    if(deck.length<3) deck=generateDecks(localData.deckCount||2);
-    const c1=deck.pop(), c2=deck.pop();
-    gameRef.update({deck,c1,c2,c3:null,gameState:'waiting_shoot',lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'請下注後抽門牌'});
-}
 
 /* ════ 遊戲動作 ════ */
 function handleAction(type){
@@ -1559,7 +1659,7 @@ function updateCard(id,c){
     else{ el.classList.remove('hidden'); el.innerText=`${c.suit}\n${c.label}`; el.classList.toggle('red',c.suit==='♥'||c.suit==='♦'); }
 }
 
-/* ════ 飛牌動畫 ════ */
+/* ════ 飛牌動畫（從牌堆頂端拔出，旋轉射向目標）════ */
 function animateShotCard(cardData,resultType,onDone){
     const canvas=document.getElementById('shot-canvas'), ctx=canvas.getContext('2d');
     canvas.width=window.innerWidth; canvas.height=window.innerHeight;
@@ -1573,85 +1673,127 @@ function animateShotCard(cardData,resultType,onDone){
     let endX,endY;
     if(resultType==='win'){ endX=gate.x; endY=gate.y; }
     else if(resultType==='crash'){ const pp=Math.random()>0.5?lpost:rpost; endX=pp.x; endY=pp.y; }
-    else{ endX=Math.random()>0.5?-cardW:canvas.width+cardW; endY=gate.y-40; }
-    const cpX=(deck.x+endX)/2+(Math.random()-0.5)*100;
-    const cpY=Math.min(deck.y,endY)-150;
+    else{ endX=Math.random()>0.5?-cardW:canvas.width+cardW; endY=gate.y-30; }
+
+    // 控制點：從牌堆往上拔出再射向目標（弧形軌跡）
+    const pullUpY = deck.y - 120; // 先往上拔出效果
+    const cpX=(deck.x+endX)/2+(Math.random()-0.5)*80;
+    const cpY=Math.min(deck.y,endY)-160;
     let t=0,rotation=0;
-
-    // 拖尾粒子
     let trail=[];
+    let particles=[];
 
-    function drawCard(x,y,rot,alpha,scale=1){
+    function drawCardFace(x,y,rot,alpha,scale=1){
         ctx.save(); ctx.globalAlpha=alpha; ctx.translate(x,y); ctx.rotate(rot); ctx.scale(scale,scale);
-        // 卡片陰影
-        ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=12; ctx.shadowOffsetX=3; ctx.shadowOffsetY=3;
-        ctx.fillStyle='#fff'; ctx.strokeStyle='#ccc'; ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.moveTo(-cardW/2+8,-cardH/2); ctx.lineTo(cardW/2-8,-cardH/2);
+        ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=18; ctx.shadowOffsetX=4; ctx.shadowOffsetY=4;
+        // 卡背→正面切換：旋轉到一半顯示正面
+        const showFace = (rotation % (Math.PI*2)) > Math.PI*0.5;
+        ctx.fillStyle=showFace?'#fff':'#1e3a64';
+        ctx.strokeStyle=showFace?'#bbb':'#3a6a9f';
+        ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.moveTo(-cardW/2+8,-cardH/2); ctx.lineTo(cardW/2-8,-cardH/2);
         ctx.quadraticCurveTo(cardW/2,-cardH/2,cardW/2,-cardH/2+8);
         ctx.lineTo(cardW/2,cardH/2-8); ctx.quadraticCurveTo(cardW/2,cardH/2,cardW/2-8,cardH/2);
         ctx.lineTo(-cardW/2+8,cardH/2); ctx.quadraticCurveTo(-cardW/2,cardH/2,-cardW/2,cardH/2-8);
         ctx.lineTo(-cardW/2,-cardH/2+8); ctx.quadraticCurveTo(-cardW/2,-cardH/2,-cardW/2+8,-cardH/2);
         ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-        // 花色
-        ctx.fillStyle=isRed?'#e74c3c':'#111'; ctx.font="bold 22px 'Segoe UI'";
-        ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText(cardData.suit,0,-12); ctx.fillText(cardData.label.toString(),0,14);
+        if(showFace){
+            // 卡片光澤
+            const grad=ctx.createLinearGradient(-cardW/2,-cardH/2,cardW/2,cardH/2);
+            grad.addColorStop(0,'rgba(255,255,255,0.35)');
+            grad.addColorStop(1,'rgba(255,255,255,0)');
+            ctx.fillStyle=grad; ctx.fill();
+            // 花色
+            ctx.fillStyle=isRed?'#e74c3c':'#111'; ctx.font="bold 24px Arial";
+            ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText(cardData.suit,0,-13); ctx.fillText(cardData.label.toString(),0,15);
+            // 角落小字
+            ctx.font="bold 11px Arial"; ctx.textAlign='left'; ctx.textBaseline='top';
+            ctx.fillText(cardData.label,-cardW/2+5,-cardH/2+5);
+        } else {
+            // 卡背花紋
+            ctx.strokeStyle='rgba(100,160,255,0.3)'; ctx.lineWidth=1;
+            ctx.strokeRect(-cardW/2+6,-cardH/2+6,cardW-12,cardH-12);
+        }
         ctx.restore();
     }
 
-    let particles=[];
-    function spawnCrash(x,y){ for(let i=0;i<28;i++){ const a=Math.random()*Math.PI*2,s=3+Math.random()*8; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,r:4+Math.random()*4,color:Math.random()>0.5?'#f39c12':'#e74c3c'}); } }
-    function spawnWin(x,y){ for(let i=0;i<40;i++){ const a=Math.random()*Math.PI*2,s=2+Math.random()*9; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,r:3+Math.random()*5,color:['#f1c40f','#2ecc71','#fff','#d4af37'][Math.floor(Math.random()*4)]}); } }
+    // 拉出動畫（先上拉0.3秒）
+    let phase='pull',it=0, pullT=0;
+    const PULL_FRAMES=15;
 
-    let phase='fly',it=0;
+    function spawnCrash(x,y){ for(let i=0;i<32;i++){ const a=Math.random()*Math.PI*2,s=3+Math.random()*9; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,r:4+Math.random()*5,color:Math.random()>0.5?'#f39c12':'#e74c3c'}); } }
+    function spawnWin(x,y){ for(let i=0;i<50;i++){ const a=Math.random()*Math.PI*2,s=2+Math.random()*10; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-3,life:1,r:3+Math.random()*6,color:['#f1c40f','#2ecc71','#fff','#d4af37','#3498db'][Math.floor(Math.random()*5)]}); } }
+
     function frame(){
         ctx.clearRect(0,0,canvas.width,canvas.height);
 
-        if(phase==='fly'){
-            t++; const pp=t/55,e=pp<0.5?2*pp*pp:-1+(4-2*pp)*pp;
-            const bx=(1-e)*(1-e)*deck.x+2*(1-e)*e*cpX+e*e*endX;
-            const by=(1-e)*(1-e)*deck.y+2*(1-e)*e*cpY+e*e*endY;
-            rotation+=0.18;
+        if(phase==='pull'){
+            pullT++;
+            const prog=pullT/PULL_FRAMES;
+            const eased=prog<0.5?2*prog*prog:-1+(4-2*prog)*prog;
+            const y=deck.y-eased*80;
+            rotation+=0.12;
+            drawCardFace(deck.x,y,rotation,Math.min(1,prog*2));
+            if(pullT>=PULL_FRAMES){ phase='fly'; t=0; }
+            requestAnimationFrame(frame);
+        } else if(phase==='fly'){
+            t++; const pp=t/55, e=pp<0.5?2*pp*pp:-1+(4-2*pp)*pp;
+            const startX=deck.x, startY=deck.y-80; // 從拔出位置開始
+            const bx=(1-e)*(1-e)*startX+2*(1-e)*e*cpX+e*e*endX;
+            const by=(1-e)*(1-e)*startY+2*(1-e)*e*cpY+e*e*endY;
+            rotation+=0.22; // 旋轉飛行
 
-            // 拖尾
+            // 拖尾特效
             trail.push({x:bx,y:by,life:1});
-            trail.forEach(tr=>{ tr.life-=0.07; });
+            trail.forEach(tr=>{ tr.life-=0.08; });
             trail=trail.filter(tr=>tr.life>0);
             trail.forEach(tr=>{
-                ctx.save(); ctx.globalAlpha=tr.life*0.35;
-                ctx.fillStyle=isRed?'rgba(231,76,60,0.5)':'rgba(100,150,255,0.4)';
-                ctx.beginPath(); ctx.arc(tr.x,tr.y,8*tr.life,0,Math.PI*2); ctx.fill();
+                ctx.save(); ctx.globalAlpha=tr.life*0.4;
+                ctx.fillStyle=isRed?'rgba(231,76,60,0.6)':'rgba(100,150,255,0.5)';
+                ctx.beginPath(); ctx.arc(tr.x,tr.y,10*tr.life,0,Math.PI*2); ctx.fill();
                 ctx.restore();
             });
 
-            drawCard(bx,by,rotation,Math.min(1,pp*3));
-            if(t>=55){ phase='impact'; if(resultType==='crash') spawnCrash(endX,endY); if(resultType==='win') spawnWin(endX,endY); }
+            drawCardFace(bx,by,rotation,Math.min(1,pp*3));
+            if(t>=55){ phase='impact'; it=0; if(resultType==='crash') spawnCrash(endX,endY); if(resultType==='win') spawnWin(endX,endY); }
             requestAnimationFrame(frame);
         } else if(phase==='impact'){
             it++;
             if(resultType==='win'){
-                // 粒子爆發
-                particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life-=0.035;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();});
+                particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life-=0.032;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();});
                 particles=particles.filter(p=>p.life>0);
-                // 光環
                 const rings=[1,0.65,0.4];
                 rings.forEach((factor,ri)=>{
-                    const r=(40+it*4)*factor, a=Math.max(0,(1-it/30))*factor;
+                    const r=(40+it*5)*factor, a=Math.max(0,(1-it/28))*factor;
                     if(a>0){ ctx.save(); ctx.strokeStyle=`rgba(46,204,113,${a})`; ctx.lineWidth=3-ri; ctx.beginPath(); ctx.arc(endX,endY,r,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
                 });
-                const sc=1-it/28, a=1-it/22; if(a>0){ drawCard(endX,endY,0,a,sc<0.5?0.5:sc); }
+                // 勝利光暈
+                if(it<15){
+                    ctx.save(); ctx.globalAlpha=(15-it)/15*0.4;
+                    const grd=ctx.createRadialGradient(endX,endY,0,endX,endY,80);
+                    grd.addColorStop(0,'rgba(46,204,113,0.8)'); grd.addColorStop(1,'transparent');
+                    ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(endX,endY,80,0,Math.PI*2); ctx.fill();
+                    ctx.restore();
+                }
+                const sc=1-it/28, a=1-it/22; if(a>0) drawCardFace(endX,endY,0,a,sc<0.5?0.5:sc);
             }
             else if(resultType==='crash'){
                 particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.35;p.life-=0.04;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();});
                 particles=particles.filter(p=>p.life>0);
-                drawCard(endX+(Math.random()-0.5)*(12-it*0.5),endY+(Math.random()-0.5)*4,Math.random()*0.35,Math.max(0,1-it/22));
+                // 撞擊震動
+                drawCardFace(endX+(Math.random()-0.5)*(14-it*0.5),endY+(Math.random()-0.5)*5,Math.random()*0.4,Math.max(0,1-it/22));
+                // 撞擊光
+                if(it<10){ ctx.save(); ctx.globalAlpha=(10-it)/10*0.5; ctx.fillStyle='rgba(243,156,18,0.7)'; ctx.beginPath(); ctx.arc(endX,endY,50-it*4,0,Math.PI*2); ctx.fill(); ctx.restore(); }
             }
             else{
-                const a=Math.max(0,1-it/15),fly=it*9,dir=endX<canvas.width/2?-1:1;
-                drawCard(endX+dir*fly,endY-fly*0.25,rotation+it*0.22,a);
+                // 沒進，飛出畫面
+                const a=Math.max(0,1-it/15), fly=it*10, dir=endX<canvas.width/2?-1:1;
+                drawCardFace(endX+dir*fly,endY-fly*0.15,rotation+it*0.25,a);
             }
-            if(it>=30||(resultType==='lose'&&it>=18)){ ctx.clearRect(0,0,canvas.width,canvas.height); if(onDone) onDone(); return; }
+            if(it>=32||(resultType==='lose'&&it>=18)){ ctx.clearRect(0,0,canvas.width,canvas.height); if(onDone) onDone(); return; }
             requestAnimationFrame(frame);
         }
     }
@@ -1694,12 +1836,14 @@ function setAllIn(){
 function cancelAllIn(){ document.getElementById('all-in-confirm-overlay').classList.remove('show'); }
 function confirmAllIn(){
     unlockAudio();
-    playSfx('sfx-allin');
+    // 播放 allin.mp3（從根目錄）
+    const mp3 = document.getElementById('sfx-allin-mp3');
+    if(mp3){ mp3.currentTime=0; mp3.play().catch(()=>{}); }
     // iOS 關鍵：在手勢的同一 call stack 內立刻 play video
     const vid = document.getElementById('allin-video');
     if(vid){
         vid.currentTime = 0;
-        vid.muted = false;
+        vid.muted = true; // 影片靜音，聲音靠 mp3
         const vp = vid.play();
         if(vp && vp.catch) vp.catch(()=>{ vid.muted=true; vid.play().catch(()=>{}); });
         vid.style.display = 'block';
@@ -1710,110 +1854,160 @@ function confirmAllIn(){
     gameRef.update({allInTrigger:getServerNow().toString()});
     document.getElementById('bet-amount').value=localData.pool;
 }
-/* ════ 真實洗牌（Fisher-Yates）+ 切牌 ════ */
+function hostResetToLobby(){ if(confirm('重製大廳狀態?')) gameRef.update({gameStarted:false}); }
+/* ════ 真實洗牌（Riffle Shuffle 模擬）+ 切牌 ════
+   模擬真實紙牌洗牌：以 Riffle Shuffle 為主（抽取不完美的間隔交叉），
+   重複 7 次（數學上7次 Riffle = 接近隨機），加入切牌。
+   這樣相鄰牌仍有真實的關聯性（不像純亂數那麼極端），更貼近真實牌桌。
+════ */
+function riffleShuffle(deck){
+    const half1 = deck.slice(0, Math.floor(deck.length/2));
+    const half2 = deck.slice(Math.floor(deck.length/2));
+    const result = [];
+    let i=0, j=0;
+    while(i<half1.length || j<half2.length){
+        // 模擬現實：每次從哪側取牌的機率與剩餘張數成比例（Binomial 模型）
+        const probLeft = half1.length-i > 0 ? (half1.length-i)/((half1.length-i)+(half2.length-j)) : 0;
+        // 每次取 1~3 張（真實手感：有時連取）
+        const burst = Math.random()<0.3 ? 2 : 1; // 30%機率連取2張
+        if(Math.random()<probLeft){
+            for(let b=0;b<burst&&i<half1.length;b++) result.push(half1[i++]);
+        } else {
+            for(let b=0;b<burst&&j<half2.length;b++) result.push(half2[j++]);
+        }
+    }
+    return result;
+}
+
 function generateDecks(count){
     let deck=[];
     const suits=['♠','♥','♦','♣'];
-    // 先依序疊牌（模擬真實牌組疊在一起）
+    // 先按花色順序疊牌（模擬開新牌時的初始狀態）
     for(let i=0;i<count;i++)
         suits.forEach(s=>{ for(let v=1;v<=13;v++) deck.push({val:v,suit:s,label:labels[v]||v}); });
-    // Fisher-Yates 洗牌
-    for(let i=deck.length-1;i>0;i--){
-        const j=Math.floor(Math.random()*(i+1));
-        [deck[i],deck[j]]=[deck[j],deck[i]];
-    }
-    // 模擬切牌：隨機從中間切一刀
-    const cut=Math.floor(deck.length*0.35)+Math.floor(Math.random()*deck.length*0.3);
+    // 進行 7 次 Riffle Shuffle（數學上7次後接近充分混合）
+    for(let r=0;r<7;r++) deck=riffleShuffle(deck);
+    // 模擬切牌：有些賭場會在中段隨機切
+    const cutMin=Math.floor(deck.length*0.3);
+    const cutRange=Math.floor(deck.length*0.4);
+    const cut=cutMin+Math.floor(Math.random()*cutRange);
     deck=[...deck.slice(cut),...deck.slice(0,cut)];
     return deck;
 }
 
-/* ════ 洗牌動畫（純視覺，不影響遊戲邏輯）════ */
-function playShuffleAnimation(onComplete){
+
+/* ════ 洗牌動畫（廣播給所有人看）════ */
+function playShuffleAnimation(onComplete, shufflerName){
     const overlay=document.getElementById('shuffle-overlay');
     const stage=document.getElementById('shuffle-stage');
     const bar=document.getElementById('shuffle-progress-bar');
+    const nameEl=document.getElementById('shuffle-player-name');
     overlay.classList.add('show');
     stage.innerHTML='';
     bar.style.width='0%';
+    if(nameEl) nameEl.innerText = shufflerName ? `${shufflerName} 正在洗牌...` : '';
 
-    // 建立 8 張虛擬牌
-    const CARDS=8;
+    // 建立 12 張虛擬牌（更多更真實）
+    const CARDS=12;
     const cards=[];
+    const cx=130, cy=40; // 中心堆位置
     for(let i=0;i<CARDS;i++){
         const el=document.createElement('div');
         el.className='shuf-card';
-        el.innerText='🂠';
-        el.style.left='83px'; el.style.top='32px'; el.style.zIndex=i;
+        el.style.left=(cx-3+i*0.5)+'px';
+        el.style.top=(cy-i*1.2)+'px';
+        el.style.zIndex=i;
         stage.appendChild(el);
         cards.push(el);
     }
 
     let step=0;
-    const STEPS=6; // 洗牌回合數
+    const STEPS=7; // 7次洗牌
 
     function doShuffle(){
         if(step>=STEPS){
-            // 發牌收尾動畫：牌飛回中央
+            // 收尾：牌飛回中央堆疊
             cards.forEach((c,i)=>{
                 setTimeout(()=>{
-                    c.style.left='83px'; c.style.top='32px';
+                    c.style.left=(cx-3+i*0.5)+'px';
+                    c.style.top=(cy-i*1.2)+'px';
                     c.style.transform='rotate(0deg) scale(1)';
-                },i*40);
+                },i*30);
             });
             setTimeout(()=>{
                 overlay.classList.remove('show');
                 if(onComplete) onComplete();
-            },CARDS*40+300);
+            },CARDS*30+400);
             return;
         }
 
-        // 每次把牌分成兩堆，交錯合併
         const half=Math.ceil(CARDS/2);
-        cards.forEach((c,i)=>{
-            const isLeft=i<half;
-            const posInGroup=isLeft?i:i-half;
+        // 左堆
+        cards.slice(0,half).forEach((c,i)=>{
             setTimeout(()=>{
-                if(isLeft){
-                    c.style.left=(20+posInGroup*6)+'px';
-                    c.style.top=(20+posInGroup*3)+'px';
-                    c.style.transform=`rotate(${-8-posInGroup*2}deg)`;
-                } else {
-                    c.style.left=(130+posInGroup*6)+'px';
-                    c.style.top=(20+posInGroup*3)+'px';
-                    c.style.transform=`rotate(${8+posInGroup*2}deg)`;
-                }
-            }, i*25);
+                c.style.left=(30+i*3)+'px';
+                c.style.top=(20+i*4)+'px';
+                c.style.transform=`rotate(${-10-i*1.5}deg)`;
+                c.style.zIndex=i;
+            },i*20);
+        });
+        // 右堆
+        cards.slice(half).forEach((c,i)=>{
+            setTimeout(()=>{
+                c.style.left=(190+i*3)+'px';
+                c.style.top=(20+i*4)+'px';
+                c.style.transform=`rotate(${10+i*1.5}deg)`;
+                c.style.zIndex=i;
+            },i*20);
         });
 
         setTimeout(()=>{
-            // 重新交錯合併
-            const order=[...Array(CARDS).keys()].sort(()=>Math.random()-0.5);
+            // Riffle merge動畫：牌交錯合回中央
+            const order=[];
+            let l=0,r=half;
+            while(l<half||r<CARDS){
+                const probLeft=(half-l)/((half-l)+(CARDS-r)||1);
+                if(r>=CARDS||(l<half&&Math.random()<probLeft)) order.push(l++);
+                else order.push(r++);
+            }
             order.forEach((origIdx,newPos)=>{
                 const c=cards[origIdx];
                 setTimeout(()=>{
-                    c.style.left=(75+newPos*3)+'px';
-                    c.style.top=(28+newPos*2)+'px';
-                    c.style.transform=`rotate(${(Math.random()-0.5)*4}deg)`;
+                    c.style.left=(cx-4+newPos*0.5)+'px';
+                    c.style.top=(cy-newPos*1.2)+'px';
+                    c.style.transform=`rotate(${(Math.random()-0.5)*3}deg)`;
                     c.style.zIndex=newPos;
-                },newPos*30);
+                },newPos*25);
             });
             step++;
             bar.style.width=(step/STEPS*100)+'%';
-            setTimeout(doShuffle, order.length*30+250);
-        }, CARDS*25+200);
+            setTimeout(doShuffle, CARDS*25+300);
+        }, CARDS*20+250);
     }
 
     doShuffle();
 }
+
+/* ════ 廣播洗牌給所有人看 ════ */
+function broadcastAndShuffle(onComplete, nameOverride){
+    const name=nameOverride||myName;
+    // 先廣播洗牌開始
+    gameRef.update({shufflingBy:name, shuffleTS:firebase.database.ServerValue.TIMESTAMP});
+    playShuffleAnimation(()=>{
+        // 洗完後清除廣播旗標
+        gameRef.update({shufflingBy:null});
+        if(onComplete) onComplete();
+    }, name);
+}
+
 
 /* ════ 帶動畫的抽柱牌 ════ */
 function drawGoalPost(){
     playSfx('sfx-deal');
     let deck=localData.deck||[];
     if(deck.length<3) {
-        // 牌不夠，需要重新洗牌，播放洗牌動畫
-        playShuffleAnimation(()=>{
+        // 牌不夠，需要重新洗牌，廣播洗牌動畫給所有人看
+        broadcastAndShuffle(()=>{
             deck=generateDecks(localData.deckCount||2);
             const c1=deck.pop(), c2=deck.pop();
             gameRef.update({deck,c1,c2,c3:null,gameState:'waiting_shoot',
@@ -1825,7 +2019,6 @@ function drawGoalPost(){
             lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'請下注後抽門牌'});
     }
 }
-function hostResetToLobby(){ if(confirm('重製大廳狀態?')) gameRef.update({gameStarted:false}); }
 </script>
 </body>
-</html>
+    </html>
