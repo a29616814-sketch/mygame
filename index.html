@@ -332,8 +332,31 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 .allin-amount{ font-size:2rem; color:var(--gold); font-weight:bold; margin-bottom:16px; }
 .allin-yes{ background:var(--red)!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
 .allin-no{ background:#555!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
-#all-in-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.96); z-index:9999; flex-direction:column; justify-content:center; align-items:center; }
-#all-in-overlay h1{ color:var(--gold); margin-top:20px; }
+#all-in-overlay{
+    display:none; position:fixed; inset:0; z-index:9999;
+    flex-direction:column; justify-content:center; align-items:center;
+    background:radial-gradient(ellipse at center, rgba(60,0,0,0.98) 0%, rgba(0,0,0,0.99) 100%);
+    overflow:hidden;
+}
+#all-in-overlay::before{
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background:repeating-conic-gradient(rgba(212,175,55,0.04) 0deg 10deg, transparent 10deg 20deg);
+    animation:spinBg 8s linear infinite;
+}
+@keyframes spinBg{ to{ transform:rotate(360deg); } }
+#all-in-overlay h1{
+    color:var(--gold); margin-top:16px;
+    font-size:clamp(1.6rem,6vw,3rem);
+    text-shadow:0 0 30px rgba(212,175,55,0.9), 0 0 60px rgba(255,100,0,0.6);
+    animation:allinPulse 0.6s ease-in-out infinite alternate;
+    position:relative; z-index:2; letter-spacing:2px;
+}
+@keyframes allinPulse{
+    from{ transform:scale(1);   text-shadow:0 0 20px rgba(212,175,55,0.8); }
+    to  { transform:scale(1.08);text-shadow:0 0 40px rgba(255,160,0,1), 0 0 80px rgba(255,80,0,0.8); }
+}
+#video-box{ position:relative; z-index:2; border-radius:12px; overflow:hidden;
+    box-shadow:0 0 40px rgba(212,175,55,0.5), 0 0 80px rgba(255,80,0,0.3); }
 
 #my-turn-toast{ display:none; position:fixed; top:50%; right:12px; transform:translateY(-50%) translateX(60px); background:var(--gold); color:#1a472a; font-weight:bold; font-size:0.9rem; padding:8px 18px; border-radius:30px; z-index:8500; box-shadow:0 4px 20px rgba(0,0,0,0.6); animation:toastSlideIn 0.4s ease-out forwards; }
 @keyframes toastSlideIn{ from{transform:translateY(-50%) translateX(60px);opacity:0;} to{transform:translateY(-50%) translateX(0);opacity:1;} }
@@ -585,8 +608,42 @@ const RECONNECT_WINDOW=60*1000, KICK_GRACE=10*1000;
 db.ref('.info/serverTimeOffset').on('value', s => serverOffset=s.val());
 function getServerNow(){ return Date.now()+serverOffset; }
 
-/* ════ 音效 ════ */
-function playSfx(id){ const el=document.getElementById(id); if(!el)return; el.currentTime=0; el.play().catch(()=>{}); }
+/* ════ 音效 (跨平台解鎖) ════ */
+let audioUnlocked = false;
+let pendingSfx = [];
+
+function unlockAudio(){
+    if(audioUnlocked) return;
+    audioUnlocked = true;
+    // 同時靜音播放所有音效元素一次，解鎖 iOS/Android 限制
+    ['sfx-win','sfx-lose','sfx-crash','sfx-fold','sfx-allin','sfx-deal'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(!el) return;
+        el.muted=true;
+        el.play().then(()=>{ el.pause(); el.muted=false; el.currentTime=0; }).catch(()=>{});
+    });
+    // 播放等待中的音效
+    pendingSfx.forEach(id=>_playSfxNow(id));
+    pendingSfx=[];
+}
+
+function _playSfxNow(id){
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.currentTime=0;
+    el.muted=false;
+    el.play().catch(()=>{});
+}
+
+function playSfx(id){
+    if(audioUnlocked){ _playSfxNow(id); }
+    else{ pendingSfx.push(id); }
+}
+
+// 監聽第一次用戶互動來解鎖音頻
+['touchstart','touchend','mousedown','keydown','click'].forEach(evt=>{
+    document.addEventListener(evt, unlockAudio, {once:true, passive:true});
+});
 
 /* ════ 畫面切換 ════ */
 function showScreen(name){
@@ -924,10 +981,26 @@ function startListening(){
         // ALL IN 影片
         if(localData.allInTrigger&&localData.allInTrigger!==lastEffectId){
             const v=document.getElementById('video-box');
-            v.innerHTML=`<video width="315" height="560" autoplay muted playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
+            // 建立 video 不加 muted，讓影片本身有聲音（需配合 audioUnlocked）
+            const vid=document.createElement('video');
+            vid.width=315; vid.height=560;
+            vid.setAttribute('playsinline','');
+            vid.setAttribute('webkit-playsinline','');
+            vid.preload='auto';
+            const src=document.createElement('source');
+            src.src='video/allin.mp4'; src.type='video/mp4';
+            vid.appendChild(src);
+            v.innerHTML=''; v.appendChild(vid);
             document.getElementById('all-in-overlay').style.display='flex';
-            playSfx('sfx-allin');
-            setTimeout(()=>document.getElementById('all-in-overlay').style.display='none',2500);
+            // 有聲播放；被阻擋則靜音播放 + 單獨播音效
+            vid.play().then(()=>{
+                if(vid.muted) playSfx('sfx-allin');
+            }).catch(()=>{
+                vid.muted=true;
+                vid.play().catch(()=>{});
+                playSfx('sfx-allin');
+            });
+            setTimeout(()=>{ vid.pause(); document.getElementById('all-in-overlay').style.display='none'; },2500);
             lastEffectId=localData.allInTrigger;
         }
 
