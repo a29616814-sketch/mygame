@@ -1,0 +1,1831 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>射龍門 Pro</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <style>
+:root {
+    --gold:#d4af37; --felt:#2d5a3c; --dark:#1a472a; --red:#e74c3c; --wood:#8B6914;
+    --safe-bottom:env(safe-area-inset-bottom,0px); --safe-left:env(safe-area-inset-left,0px);
+    --safe-right:env(safe-area-inset-right,0px);   --safe-top:env(safe-area-inset-top,0px);
+}
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body{ width:100%; height:100%; background:#0d1f15; color:white; font-family:'Segoe UI',sans-serif; overflow:hidden; touch-action:manipulation; }
+
+/* ════ 登入畫面 ════ */
+#login-screen{
+    position:fixed; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center,#1a472a 0%,#0a1f0f 100%);
+    z-index:100; padding:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+#login-screen h1{ font-size:clamp(1.4rem,5vw,2.2rem); color:var(--gold); margin-bottom:20px; text-shadow:0 2px 12px rgba(212,175,55,0.5); }
+.setup-box{ background:rgba(0,0,0,0.75); border:2px solid var(--gold); border-radius:20px; padding:24px 28px; width:min(400px,90vw); }
+.input-row{ display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+.input-row label{ color:#aaa; font-size:0.85rem; }
+.input-row input,.input-row select{ padding:9px 12px; border-radius:8px; border:none; background:#333; color:white; font-size:1rem; width:100%; }
+.input-inline{ display:flex; gap:8px; }
+.input-inline>div{ flex:1; display:flex; flex-direction:column; gap:4px; }
+.input-inline label{ color:#aaa; font-size:0.78rem; }
+.input-inline input,.input-inline select{ padding:7px; border-radius:8px; border:none; background:#333; color:white; font-size:0.9rem; width:100%; }
+.btn-main{ width:100%; padding:12px; background:#2ecc71; color:white; border:none; border-radius:10px; font-size:1.05rem; font-weight:bold; cursor:pointer; margin-top:6px; }
+.btn-main:active{ filter:brightness(0.9); }
+.btn-leave{ background:#e74c3c !important; }
+.chk-row{ display:flex; align-items:center; gap:8px; color:#ccc; font-size:0.88rem; margin:5px 0; }
+
+/* ════ 等待大廳 ════ */
+#lobby-screen{
+    position:fixed; inset:0; display:none; flex-direction:column;
+    background:radial-gradient(ellipse at center,#1a472a 0%,#0a1f0f 100%);
+    z-index:90; padding:var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+    overflow:hidden;
+}
+#lobby-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px 8px; border-bottom:1px solid rgba(212,175,55,0.3);
+    flex-shrink:0;
+}
+#lobby-header h2{ color:var(--gold); font-size:clamp(1rem,4vw,1.4rem); }
+.lobby-leave-btn{
+    background:rgba(231,76,60,0.8); border:1px solid #e74c3c; color:white;
+    border-radius:20px; padding:5px 14px; cursor:pointer; font-size:0.85rem; font-weight:bold;
+}
+.lobby-leave-btn:active{ filter:brightness(0.85); }
+
+#lobby-body{ display:flex; flex:1; overflow:hidden; gap:0; }
+
+/* 玩家列表 */
+#lobby-players-panel{
+    width:min(180px,38%); border-right:1px solid rgba(212,175,55,0.2);
+    display:flex; flex-direction:column; flex-shrink:0;
+}
+#lobby-players-panel h3{ color:#aaa; font-size:0.8rem; padding:8px 12px 4px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
+#lobby-player-list{ flex:1; overflow-y:auto; padding:6px 8px; }
+.lobby-player-item{
+    display:flex; align-items:center; gap:6px;
+    padding:6px 8px; border-radius:8px; margin-bottom:4px;
+    background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
+    font-size:clamp(11px,2.2vw,14px);
+}
+.lobby-player-item.is-host{ border-color:rgba(212,175,55,0.5); background:rgba(212,175,55,0.08); }
+.lobby-player-item.is-me{ border-color:rgba(52,152,219,0.5); }
+.lobby-player-dot{ width:8px; height:8px; border-radius:50%; background:#2ecc71; flex-shrink:0; }
+.lobby-player-name{ flex:1; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lobby-player-crown{ font-size:0.9rem; flex-shrink:0; }
+
+/* 大廳右側:聊天 + 開始 */
+#lobby-right{ flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+/* 聊天區 */
+#lobby-chat-area{ flex:1; display:flex; flex-direction:column; overflow:hidden; }
+#lobby-chat-msgs{
+    flex:1; overflow-y:auto; padding:8px 10px; display:flex; flex-direction:column; gap:4px;
+    scroll-behavior:smooth;
+}
+.chat-msg{ font-size:clamp(11px,2.2vw,13px); line-height:1.4; word-break:break-word; }
+.chat-msg .chat-name{ color:var(--gold); font-weight:bold; margin-right:4px; }
+.chat-msg.system{ color:#888; font-style:italic; }
+.chat-msg.is-me .chat-name{ color:#74b9ff; }
+
+#lobby-chat-input-row{
+    display:flex; gap:6px; padding:6px 10px 10px;
+    border-top:1px solid rgba(255,255,255,0.07); flex-shrink:0;
+}
+#lobby-chat-input{
+    flex:1; background:#1a2a1e; border:1px solid #3a5a3c; border-radius:20px;
+    color:white; padding:7px 14px; font-size:0.9rem; outline:none;
+}
+#lobby-chat-input::placeholder{ color:#556; }
+#lobby-chat-send{
+    background:var(--gold); color:#1a1a1a; border:none; border-radius:50%;
+    width:34px; height:34px; cursor:pointer; font-size:1rem; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-weight:bold;
+}
+#lobby-chat-send:active{ filter:brightness(0.85); }
+
+/* 房主開局區 */
+#lobby-host-controls{
+    padding:8px 10px; border-top:1px solid rgba(212,175,55,0.2);
+    background:rgba(212,175,55,0.05); flex-shrink:0;
+}
+#lobby-host-controls h3{ color:var(--gold); font-size:0.85rem; margin-bottom:8px; }
+.input-inline-sm{ display:flex; gap:6px; margin-bottom:6px; }
+.input-inline-sm>div{ flex:1; display:flex; flex-direction:column; gap:2px; }
+.input-inline-sm label{ color:#aaa; font-size:0.72rem; }
+.input-inline-sm input,.input-inline-sm select{ padding:5px 7px; border-radius:6px; border:none; background:#2a2a2a; color:white; font-size:0.85rem; width:100%; }
+#lobby-waiting-msg{ text-align:center; color:#888; font-size:0.9rem; padding:10px; }
+
+/* ════ 遊戲畫面 ════ */
+#game-screen{ display:none; position:fixed; top:0; left:0; width:100%; height:100%; }
+
+#table-wrap{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:#0d1f15;
+    padding:max(var(--safe-top),6px) max(var(--safe-right),8px) max(var(--safe-bottom),6px) max(var(--safe-left),8px);
+}
+#oval{
+    position:relative;
+    width:min(92vw,92vh*1.9); height:min(88vh,88vw*1.9);
+    background:radial-gradient(ellipse at 50% 45%,#3a7a52 0%,#2d5a3c 55%,#1e4a30 100%);
+    border-radius:50%; border:12px solid var(--wood);
+    box-shadow:0 0 0 4px #5a3a08,0 0 0 8px #2a1a04,inset 0 0 80px rgba(0,0,0,0.4),0 20px 60px rgba(0,0,0,0.8);
+}
+#oval::before{
+    content:''; position:absolute; inset:0; border-radius:50%;
+    background:repeating-linear-gradient(45deg,transparent,transparent 22px,rgba(255,255,255,0.012) 22px,rgba(255,255,255,0.012) 23px);
+    pointer-events:none;
+}
+@keyframes tableGlow{
+    0%,100%{ box-shadow:0 0 0 4px #5a3a08,0 0 0 8px #2a1a04,inset 0 0 80px rgba(0,0,0,0.4),0 20px 60px rgba(0,0,0,0.8); }
+    50%{ box-shadow:0 0 0 4px var(--gold),0 0 0 12px rgba(212,175,55,0.3),inset 0 0 80px rgba(0,0,0,0.4),0 20px 60px rgba(0,0,0,0.8); }
+}
+#oval.my-turn{ animation:tableGlow 1.5s ease-in-out infinite; }
+
+#table-center{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-62%);
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    z-index:10; pointer-events:none;
+}
+#pool-display{ font-size:clamp(14px,3vmin,22px); color:#f1c40f; font-weight:bold; text-shadow:0 2px 8px rgba(0,0,0,0.8); }
+#status-msg{ font-size:clamp(8px,1.7vmin,12px); color:#ccc; min-height:14px; }
+#cards-and-deck{ display:flex; align-items:center; gap:clamp(4px,1.5vmin,12px); pointer-events:auto; }
+
+.post-wrap{ display:flex; flex-direction:column; align-items:center; gap:2px; }
+.post-label{ font-size:clamp(7px,1.3vmin,10px); color:#aaa; letter-spacing:1px; }
+.post-label.gate{ color:var(--gold); font-weight:bold; }
+.connector{ width:clamp(4px,1.2vmin,10px); height:3px; background:linear-gradient(90deg,rgba(212,175,55,0.6),rgba(212,175,55,0.2)); align-self:center; flex-shrink:0; }
+.connector.r{ background:linear-gradient(90deg,rgba(212,175,55,0.2),rgba(212,175,55,0.6)); }
+
+.card{
+    width:clamp(44px,7.5vmin,68px); height:clamp(62px,10.5vmin,96px);
+    background:white; border-radius:8px; color:black;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:clamp(15px,3.2vmin,26px); font-weight:bold;
+    border:2px solid #333; box-shadow:2px 2px 8px rgba(0,0,0,0.5); white-space:pre-wrap; flex-shrink:0;
+}
+.card.hidden{ background:#1e3a5f; color:transparent; border-color:#3a6a9f; }
+.card.red{ color:var(--red); }
+
+.gate-frame{
+    width:clamp(44px,7.5vmin,68px); height:clamp(62px,10.5vmin,96px);
+    border:2px dashed rgba(212,175,55,0.4); border-radius:8px; background:rgba(212,175,55,0.04);
+    display:flex; align-items:center; justify-content:center; position:relative; overflow:visible; flex-shrink:0;
+}
+.gate-frame .gate-inner-text{ color:rgba(212,175,55,0.3); font-size:clamp(7px,1.3vmin,10px); }
+#c3-in-gate{ display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:10; }
+
+#deck-stack{ position:relative; width:clamp(44px,7.5vmin,68px); height:clamp(62px,10.5vmin,96px); cursor:default; flex-shrink:0; }
+.dk{ position:absolute; width:100%; height:100%; border-radius:8px; border:1.5px solid #3a6a9f; }
+.dk:nth-child(1){ transform:translate(5px,5px); background:#182e49; }
+.dk:nth-child(2){ transform:translate(2px,2px); background:#1c3454; }
+.dk:nth-child(3){ transform:translate(0,0); background:linear-gradient(135deg,#2a4f80,#1e3a64); box-shadow:3px 3px 10px rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; font-size:clamp(15px,3.2vmin,26px); color:rgba(255,255,255,0.25); }
+#deck-stack.can-click{ cursor:pointer; animation:deckPulse 1s ease-in-out infinite; }
+#deck-stack.can-click .dk:nth-child(3){ background:linear-gradient(135deg,#4a80cc,#2a5090); box-shadow:0 0 18px rgba(212,175,55,0.7),3px 3px 10px rgba(0,0,0,0.7); border-color:var(--gold); }
+@keyframes deckPulse{ 0%,100%{transform:scale(1);} 50%{transform:scale(1.09);} }
+#deck-badge{ position:absolute; bottom:-8px; right:-8px; z-index:6; background:var(--gold); color:#1a472a; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 5px; }
+#deck-hint{ position:absolute; bottom:-20px; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:clamp(7px,1.4vmin,10px); color:var(--gold); opacity:0; transition:opacity 0.3s; pointer-events:none; }
+#deck-hint.show{ opacity:1; }
+
+/* 座位 */
+.seat{ position:absolute; transform:translate(-50%,-50%); z-index:20; text-align:center; }
+.seat-box{
+    background:rgba(0,0,0,0.85); border:2px solid #555; border-radius:12px;
+    padding:clamp(4px,0.8vmin,7px) clamp(8px,1.5vmin,14px);
+    font-size:clamp(10px,2vmin,15px);
+    min-width:clamp(58px,11vmin,96px); max-width:clamp(72px,13vmin,112px);
+    line-height:1.4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    transition:transform 0.18s,box-shadow 0.18s,max-width 0.18s; cursor:default;
+}
+.seat-box.expanded{ transform:scale(1.22); max-width:clamp(90px,18vmin,160px); box-shadow:0 4px 20px rgba(0,0,0,0.7); z-index:50; position:relative; }
+.seat-box.active{ border-color:var(--gold); box-shadow:0 0 10px var(--gold); background:rgba(212,175,55,0.15); }
+.seat-box.is-me{ border-color:#3498db; }
+.seat-box.active.is-me{ border-color:var(--gold); }
+.seat-box.kicked{ border-color:#e74c3c; background:rgba(231,76,60,0.12); opacity:0.6; }
+.seat-name{ font-weight:bold; font-size:clamp(11px,2.2vmin,16px); }
+.seat-bal{ color:#2ecc71; font-size:clamp(10px,1.9vmin,14px); font-weight:bold; }
+.seat-tmr{ color:#ff7675; font-size:clamp(9px,1.6vmin,12px); }
+.seat-kick{ position:absolute; top:-6px; right:-6px; background:#e74c3c; color:white; border-radius:50%; width:18px; height:18px; border:1px solid white; display:none; cursor:pointer; font-size:10px; line-height:16px; z-index:25; }
+body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
+
+/* 下注面板 */
+#bet-panel{
+    position:absolute; bottom:18%; left:50%; transform:translateX(-50%);
+    width:90%; display:none; flex-direction:row; align-items:center; justify-content:center;
+    gap:clamp(4px,1vmin,8px); padding:8px 12px 10px;
+    background:rgba(26,70,42,0.88); border-radius:16px; border:1.5px solid rgba(212,175,55,0.5);
+    box-shadow:0 2px 16px rgba(0,0,0,0.35),inset 0 1px 0 rgba(255,255,255,0.06);
+    z-index:30; pointer-events:auto; flex-wrap:wrap;
+}
+.chip-row{ display:flex; gap:clamp(3px,0.8vmin,6px); align-items:center; }
+.chip-btn{ background:none; border:none; padding:0; cursor:pointer; }
+.chip-btn:active{ transform:scale(0.88); }
+.chip-btn img{ width:clamp(30px,5vmin,44px); height:clamp(30px,5vmin,44px); border-radius:50%; box-shadow:0 2px 6px rgba(0,0,0,0.5); }
+.bet-actions{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center; }
+#bet-amount{ background:rgba(0,0,0,0.55); color:var(--gold); border:2px solid var(--gold); font-size:0.95rem; width:60px; border-radius:7px; padding:2px 5px; text-align:center; }
+.action-row{ display:flex; gap:clamp(3px,0.8vmin,6px); flex-wrap:wrap; justify-content:center; align-items:center; }
+.action-row button{ padding:clamp(5px,1vmin,8px) clamp(8px,1.5vmin,12px); border:none; border-radius:7px; font-weight:bold; cursor:pointer; font-size:clamp(10px,1.8vmin,14px); white-space:nowrap; }
+.btn-up{ background:#3498db; color:white; }
+.btn-down{ background:#e67e22; color:white; }
+.btn-allin{ background:var(--red); color:white; }
+.btn-fold{ background:#7f8c8d; color:white; }
+.btn-clear{ background:rgba(0,0,0,0.4); color:#ccc; border:1px solid #555; padding:clamp(5px,1vmin,8px) 7px!important; font-size:clamp(9px,1.5vmin,12px)!important; }
+.bet-divider{ width:1px; height:32px; background:rgba(212,175,55,0.2); margin:0 1px; }
+
+/* 遊戲內聊天 */
+#game-chat-toggle{
+    position:absolute; left:10px; bottom:50px; width:36px; height:36px;
+    background:rgba(0,0,0,0.65); border:1px solid rgba(212,175,55,0.5);
+    border-radius:50%; font-size:1.1rem; cursor:pointer; z-index:31;
+    display:flex; align-items:center; justify-content:center;
+    transition:background 0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.5);
+}
+#game-chat-toggle.open{ background:rgba(212,175,55,0.25); border-color:var(--gold); }
+#game-chat-toggle .chat-unread{
+    position:absolute; top:-4px; right:-4px; background:var(--red);
+    color:white; font-size:9px; font-weight:bold; border-radius:50%;
+    width:16px; height:16px; display:none; align-items:center; justify-content:center;
+}
+#game-chat-toggle .chat-unread.show{ display:flex; }
+#game-chat-panel{
+    position:absolute; left:52px; bottom:8px;
+    width:min(260px,60vw); height:180px;
+    background:rgba(10,25,15,0.95); border:1px solid rgba(212,175,55,0.35);
+    border-radius:14px; display:none; flex-direction:column; z-index:30; overflow:hidden;
+    animation:chatSlideIn 0.2s ease-out;
+}
+@keyframes chatSlideIn{ from{opacity:0;transform:scaleY(0.5);transform-origin:bottom;} to{opacity:1;transform:scaleY(1);} }
+#game-chat-msgs{ flex:1; overflow-y:auto; padding:6px 8px; display:flex; flex-direction:column; gap:3px; scroll-behavior:smooth; }
+#game-chat-input-row{ display:flex; gap:4px; padding:4px 6px; border-top:1px solid rgba(255,255,255,0.07); flex-shrink:0; }
+#game-chat-input{ flex:1; background:#1a2a1e; border:1px solid #3a5a3c; border-radius:12px; color:white; padding:5px 10px; font-size:0.8rem; outline:none; }
+#game-chat-send{ background:var(--gold); color:#1a1a1a; border:none; border-radius:50%; width:26px; height:26px; cursor:pointer; font-size:0.8rem; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+
+/* ════ Emoji 面板 (5 個一列) ════ */
+#emoji-toggle{
+    position:absolute; left:10px; bottom:12px; width:36px; height:36px;
+    background:rgba(0,0,0,0.65); border:1px solid rgba(212,175,55,0.5);
+    border-radius:50%; font-size:1.2rem; cursor:pointer; z-index:31;
+    display:none; align-items:center; justify-content:center; transition:background 0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.5);
+}
+#emoji-toggle.open{ background:rgba(212,175,55,0.25); border-color:var(--gold); }
+#emoji-toggle:active{ transform:scale(0.9); }
+
+/* ════ Emoji 面板：5 個一列的格狀排列 ════ */
+#emoji-bar{
+    position:absolute; left:52px; bottom:56px; display:none; z-index:30;
+    background:rgba(0,0,0,0.88); padding:8px; border-radius:16px; border:1px solid rgba(212,175,55,0.3);
+    transform-origin:left bottom; animation:emojiSlideIn 0.2s ease-out;
+}
+#emoji-bar .emoji-grid{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:4px;
+}
+@keyframes emojiSlideIn{ from{opacity:0;transform:scaleX(0.3);} to{opacity:1;transform:scaleX(1);} }
+.emoji-btn{
+    font-size:1.2rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+    border-radius:8px; width:38px; height:38px; cursor:pointer; transition:transform 0.15s,background 0.15s;
+    display:flex; align-items:center; justify-content:center;
+}
+.emoji-btn:hover{ background:rgba(212,175,55,0.2); border-color:rgba(212,175,55,0.5); }
+.emoji-btn:active{ transform:scale(1.25); }
+/* 標籤列 */
+#emoji-bar .emoji-label{
+    color:rgba(212,175,55,0.6); font-size:0.68rem; padding:2px 2px 4px;
+    letter-spacing:1px; text-transform:uppercase;
+}
+
+/* 工具列 */
+#tools{ position:absolute; bottom:10px; right:10px; display:none; flex-direction:column; gap:5px; z-index:30; align-items:flex-end; }
+.tool-btn{ background:rgba(0,0,0,0.6); border:1px solid #555; color:var(--gold); border-radius:20px; padding:5px 10px; cursor:pointer; font-size:clamp(9px,1.6vmin,12px); white-space:nowrap; }
+.tool-btn:active{ filter:brightness(1.3); }
+.tool-btn.leave{ border-color:#e74c3c; color:#e74c3c; }
+
+/* ════ BGM 控制器 ════ */
+#bgm-ctrl{
+    position:fixed; top:max(var(--safe-top),10px); right:max(var(--safe-right),10px);
+    z-index:8600; display:none; align-items:center; gap:6px;
+    background:rgba(0,0,0,0.72); border:1px solid rgba(212,175,55,0.45);
+    border-radius:30px; padding:5px 12px 5px 8px;
+    backdrop-filter:blur(8px); box-shadow:0 2px 16px rgba(0,0,0,0.5);
+    transition:opacity 0.3s;
+}
+#bgm-ctrl:hover{ opacity:1 !important; }
+#bgm-toggle-btn{
+    background:none; border:none; color:var(--gold); font-size:1.15rem;
+    cursor:pointer; width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+    border-radius:50%; transition:transform 0.18s;
+}
+#bgm-toggle-btn:active{ transform:scale(0.85); }
+#bgm-toggle-btn.playing{ animation:bgmSpin 4s linear infinite; }
+@keyframes bgmSpin{ 0%{filter:drop-shadow(0 0 4px var(--gold));} 50%{filter:drop-shadow(0 0 10px var(--gold));} 100%{filter:drop-shadow(0 0 4px var(--gold));} }
+#bgm-vol{
+    -webkit-appearance:none; appearance:none;
+    width:56px; height:4px; background:rgba(255,255,255,0.18); border-radius:4px; outline:none; cursor:pointer;
+}
+#bgm-vol::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--gold); cursor:pointer; box-shadow:0 0 6px rgba(212,175,55,0.6);
+}
+#bgm-vol::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; background:var(--gold); border:none; cursor:pointer; }
+#bgm-note{ font-size:0.65rem; color:rgba(212,175,55,0.7); letter-spacing:0.5px; white-space:nowrap; }
+
+/* ════ Pool 金額動畫 ════ */
+@keyframes poolPop{ 0%{transform:scale(1);} 40%{transform:scale(1.18);color:#fff;} 100%{transform:scale(1);} }
+.pool-pop{ animation:poolPop 0.4s ease-out; }
+
+/* ════ 座位倒計時進度條 ════ */
+.seat-timer-bar-wrap{
+    width:100%; height:3px; background:rgba(255,255,255,0.1); border-radius:2px;
+    margin-top:3px; overflow:hidden;
+}
+.seat-timer-bar{
+    height:100%; border-radius:2px;
+    background:linear-gradient(90deg,#2ecc71,#f1c40f);
+    transition:width 1s linear, background 1s;
+}
+.seat-timer-bar.warn{ background:linear-gradient(90deg,#e67e22,#e74c3c); }
+
+/* ════ 牌面升級：發光邊框 ════ */
+.card.red{ color:var(--red); text-shadow:0 0 6px rgba(231,76,60,0.4); }
+.card:not(.hidden):not(.red){ text-shadow:0 0 4px rgba(0,0,0,0.3); }
+.card:not(.hidden){
+    box-shadow:2px 2px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+/* ════ 籌碼按鈕 hover 光暈 ════ */
+.chip-btn img:hover{ box-shadow:0 0 14px rgba(212,175,55,0.7),0 2px 6px rgba(0,0,0,0.5); transform:scale(1.08); }
+.chip-btn img{ transition:transform 0.15s, box-shadow 0.15s; }
+
+/* ════ 輪到你 Toast 升級 ════ */
+#my-turn-toast{
+    display:none; position:fixed; top:50%; right:12px;
+    transform:translateY(-50%) translateX(60px);
+    background:linear-gradient(135deg,var(--gold),#b8960c);
+    color:#1a472a; font-weight:bold; font-size:0.95rem;
+    padding:10px 22px; border-radius:30px; z-index:8500;
+    box-shadow:0 0 24px rgba(212,175,55,0.6),0 4px 20px rgba(0,0,0,0.6);
+    animation:toastSlideIn 0.4s ease-out forwards;
+    border:2px solid rgba(255,255,255,0.3);
+}
+@keyframes toastSlideIn{ from{transform:translateY(-50%) translateX(60px);opacity:0;} to{transform:translateY(-50%) translateX(0);opacity:1;} }
+
+/* ════ 結果橫幅升級 ════ */
+#result-banner{
+    display:none; position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%) scale(0.5); z-index:8000;
+    border-radius:24px; padding:18px 36px;
+    border:3px solid var(--gold); text-align:center;
+    transition:transform 0.38s cubic-bezier(0.175,0.885,0.32,1.275),opacity 0.38s;
+    opacity:0; pointer-events:none; overflow:hidden;
+}
+#result-banner.type-win{
+    background:linear-gradient(135deg,rgba(0,0,0,0.95),rgba(26,70,42,0.95));
+    border-color:#2ecc71;
+    box-shadow:0 0 40px rgba(46,204,113,0.5), 0 10px 40px rgba(0,0,0,0.8);
+}
+#result-banner.type-lose{
+    background:linear-gradient(135deg,rgba(0,0,0,0.95),rgba(60,20,20,0.95));
+    border-color:var(--red);
+    box-shadow:0 0 30px rgba(231,76,60,0.35), 0 10px 40px rgba(0,0,0,0.8);
+}
+#result-banner.type-crash{
+    background:linear-gradient(135deg,rgba(0,0,0,0.95),rgba(50,35,10,0.95));
+    border-color:#f39c12;
+    box-shadow:0 0 30px rgba(243,156,18,0.4), 0 10px 40px rgba(0,0,0,0.8);
+}
+#result-banner.show{ display:block; transform:translate(-50%,-50%) scale(1); opacity:1; }
+.rb-emoji{ font-size:2.6rem; line-height:1; }
+.rb-text{ font-size:1.4rem; font-weight:bold; margin:5px 0 4px; }
+.rb-amount{ font-size:1.9rem; font-weight:bold; letter-spacing:1px; }
+.rb-amount.positive{ color:#2ecc71; text-shadow:0 0 16px rgba(46,204,113,0.7); }
+.rb-amount.negative{ color:var(--red); text-shadow:0 0 12px rgba(231,76,60,0.5); }
+#result-banner::before{
+    content:''; position:absolute; inset:0; pointer-events:none; border-radius:22px;
+    background:linear-gradient(135deg,rgba(255,255,255,0.06) 0%,transparent 60%);
+}
+
+/* Canvas */
+#shot-canvas{ position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:7000; }
+
+/* ════ 洗牌動畫 Overlay ════ */
+#shuffle-overlay{
+    display:none; position:fixed; inset:0; z-index:8800;
+    background:rgba(0,0,0,0.82); flex-direction:column;
+    align-items:center; justify-content:center; gap:16px;
+    backdrop-filter:blur(4px);
+}
+#shuffle-overlay.show{ display:flex; }
+#shuffle-stage{ position:relative; width:220px; height:140px; }
+.shuf-card{
+    position:absolute; width:54px; height:76px;
+    border-radius:7px; border:1.5px solid #3a6a9f;
+    background:linear-gradient(135deg,#2a4f80,#1e3a64);
+    box-shadow:2px 2px 8px rgba(0,0,0,0.7);
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.4rem; color:rgba(255,255,255,0.18);
+    transition:transform 0.18s cubic-bezier(0.34,1.56,0.64,1), left 0.22s ease, top 0.22s ease;
+    will-change:transform,left,top;
+}
+#shuffle-label{
+    color:var(--gold); font-size:1rem; font-weight:bold;
+    letter-spacing:2px; text-shadow:0 0 12px rgba(212,175,55,0.6);
+    animation:shufflePulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes shufflePulse{ from{opacity:0.7;} to{opacity:1;} }
+#shuffle-progress{ width:160px; height:4px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; }
+#shuffle-progress-bar{ height:100%; width:0%; border-radius:4px; background:linear-gradient(90deg,var(--gold),#2ecc71); transition:width 0.3s ease; }
+
+/* ════ 其他 ════ */
+
+.confetti-piece{ position:fixed; width:10px; height:14px; top:-20px; border-radius:2px; pointer-events:none; animation:confettiFall linear forwards; z-index:7999; }
+@keyframes confettiFall{ 0%{transform:translateY(0) rotate(0deg);opacity:1;} 100%{transform:translateY(110vh) rotate(720deg);opacity:0;} }
+
+#all-in-confirm-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:9000; flex-direction:column; justify-content:center; align-items:center; }
+#all-in-confirm-overlay.show{ display:flex; }
+.allin-box{ background:linear-gradient(135deg,#1a1a1a,#2c0000); border:3px solid var(--red); border-radius:24px; padding:22px 30px; text-align:center; animation:alinPop 0.35s cubic-bezier(0.175,0.885,0.32,1.275); box-shadow:0 0 30px rgba(231,76,60,0.4), 0 10px 40px rgba(0,0,0,0.8); }
+@keyframes alinPop{ from{transform:scale(0.5) rotate(-5deg);opacity:0;} to{transform:scale(1) rotate(0deg);opacity:1;} }
+.allin-box h2{ font-size:1.5rem; color:var(--red); margin-bottom:6px; }
+.allin-box p{ color:#ccc; margin-bottom:12px; }
+.allin-amount{ font-size:2rem; color:var(--gold); font-weight:bold; margin-bottom:16px; }
+.allin-yes{ background:var(--red)!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
+.allin-no{ background:#555!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
+#all-in-overlay{
+    display:none; position:fixed; inset:0;
+    background:radial-gradient(ellipse at center, rgba(120,0,0,0.97) 0%, rgba(0,0,0,0.99) 100%);
+    z-index:9999; flex-direction:column; justify-content:center; align-items:center;
+    overflow:hidden;
+}
+#all-in-overlay::before{
+    content:''; position:absolute; inset:-20px;
+    background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(255,50,0,0.05) 10px,rgba(255,50,0,0.05) 12px);
+    animation:allInBg 0.5s linear infinite;
+}
+@keyframes allInBg{ 0%{transform:translate(0,0);} 100%{transform:translate(12px,12px);} }
+#all-in-overlay h1{
+    color:var(--gold); margin-top:16px; font-size:clamp(1.4rem,5vw,2.2rem);
+    text-shadow:0 0 20px rgba(255,150,0,0.9), 0 0 40px rgba(255,100,0,0.6);
+    animation:allInTitle 0.4s ease-out infinite alternate; z-index:1;
+    letter-spacing:2px;
+}
+@keyframes allInTitle{ from{transform:scale(1);} to{transform:scale(1.06);} }
+#video-box{ position:relative; z-index:1; border-radius:16px; overflow:hidden;
+    box-shadow:0 0 40px rgba(255,100,0,0.6), 0 0 80px rgba(255,0,0,0.3);
+}
+
+/* ════ 其他 Toast ════ */
+#refill-toast{ display:none; position:fixed; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); color:var(--gold); border:2px solid var(--gold); font-size:0.85rem; padding:7px 18px; border-radius:20px; z-index:8500; white-space:nowrap; }
+#reconnect-toast{ display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); color:var(--gold); border:2px solid var(--gold); border-radius:16px; padding:16px 28px; text-align:center; z-index:9500; font-size:1rem; }
+
+#emoji-broadcast-area{ position:fixed; top:30%; left:50%; transform:translate(-50%,-50%); pointer-events:none; z-index:10000; }
+.broadcast-item{ background:rgba(0,0,0,0.88); color:var(--gold); padding:7px 16px; border-radius:30px; margin-bottom:5px; font-weight:bold; border:2px solid var(--gold); animation:fadeUp 2.5s forwards; white-space:nowrap; }
+@keyframes fadeUp{ 0%{opacity:0;transform:translateY(10px);} 15%{opacity:1;transform:translateY(0);} 80%{opacity:1;} 100%{opacity:0;transform:translateY(-15px);} }
+
+@keyframes winPulse{ 0%{box-shadow:2px 2px 8px rgba(0,0,0,0.5);} 40%{transform:scale(1.15);box-shadow:0 0 28px #2ecc71,0 0 55px #2ecc71;} 100%{box-shadow:2px 2px 8px rgba(0,0,0,0.5);} }
+@keyframes losePulse{ 0%{transform:scale(1);} 20%{transform:translateX(-7px) scale(1.05);box-shadow:0 0 22px var(--red);} 40%{transform:translateX(7px) scale(1.05);box-shadow:0 0 22px var(--red);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} 100%{transform:scale(1);} }
+@keyframes crashPulse{ 0%{transform:scale(1);} 30%{transform:scale(1.18) rotate(-5deg);box-shadow:0 0 38px #f39c12;} 60%{transform:scale(1.1) rotate(5deg);} 100%{transform:scale(1);} }
+.anim-win{ animation:winPulse 0.7s ease-out; }
+.anim-lose{ animation:losePulse 0.7s ease-out; }
+.anim-crash{ animation:crashPulse 0.7s ease-out; }
+#main-board,#player-area-wrapper,.player-toggle-btn{ display:none!important; }
+    </style>
+</head>
+<body>
+<canvas id="shot-canvas"></canvas>
+<div id="emoji-broadcast-area"></div>
+<div id="reconnect-toast"></div>
+
+<div id="result-banner">
+    <div class="rb-emoji" id="rb-emoji">🎉</div>
+    <div class="rb-text" id="rb-text">射進!</div>
+    <div class="rb-amount" id="rb-amount">+$0</div>
+</div>
+<div id="all-in-confirm-overlay">
+    <div class="allin-box">
+        <h2>🔥 ALL IN 確認</h2>
+        <p>你確定要押上全部彩金?</p>
+        <div class="allin-amount" id="allin-pool-preview">$0</div>
+        <div><button class="allin-yes" onclick="confirmAllIn()">💥 我要全部!</button><button class="allin-no" onclick="cancelAllIn()">取消</button></div>
+    </div>
+</div>
+<div id="all-in-overlay"><div id="video-box"></div><h1>我要全部!!!</h1></div>
+<!-- ══ 洗牌動畫 ══ -->
+<div id="shuffle-overlay">
+    <div id="shuffle-stage"></div>
+    <div id="shuffle-label">🃏 洗牌中...</div>
+    <div id="shuffle-progress"><div id="shuffle-progress-bar"></div></div>
+</div>
+<div id="shuffle-overlay">
+    <div id="shuffle-stage"></div>
+    <div id="shuffle-label">🃏 洗牌中...</div>
+    <div id="shuffle-progress"><div id="shuffle-progress-bar"></div></div>
+</div>
+<div id="refill-toast"></div>
+<div id="my-turn-toast">🎯 輪到你了!</div>
+
+<audio id="sfx-win"   src="sfx/win.mp3"   preload="auto"></audio>
+<audio id="sfx-lose"  src="sfx/lose.mp3"  preload="auto"></audio>
+<audio id="sfx-crash" src="sfx/crash.mp3" preload="auto"></audio>
+<audio id="sfx-fold"  src="sfx/fold.mp3"  preload="auto"></audio>
+<audio id="sfx-allin" src="sfx/allin.mp3" preload="auto"></audio>
+<audio id="sfx-deal"  src="sfx/deal.mp3"  preload="auto"></audio>
+<!-- 背景音樂：請將 bgm.mp3 放到 sfx/ 目錄下 -->
+<audio id="bgm" src="sfx/bgm.mp3" preload="auto" loop></audio>
+<!-- iOS 需要 video 元素在手勢時已存在，不能動態 innerHTML 建立 -->
+<video id="allin-video" src="video/allin.mp4" playsinline webkit-playsinline preload="auto"
+    style="display:none;max-width:90vw;max-height:60vh;border-radius:12px;position:relative;z-index:1;
+    box-shadow:0 0 40px rgba(255,100,0,0.6),0 0 80px rgba(255,0,0,0.3);">
+</video>
+
+<!-- ══ 登入畫面 ══ -->
+<div id="login-screen">
+    <h1>🏟️ 埔墘金龍門 Pro</h1>
+    <div class="setup-box">
+        <div class="input-row">
+            <label>暱稱</label>
+            <input type="text" id="my-name" placeholder="輸入暱稱" maxlength="10">
+        </div>
+        <button class="btn-main" onclick="joinRoom()">🃏 進入大廳</button>
+    </div>
+</div>
+
+<!-- ══ 等待大廳 ══ -->
+<div id="lobby-screen">
+    <div id="lobby-header">
+        <h2>🏟️ 等待大廳</h2>
+        <button class="lobby-leave-btn" onclick="leaveRoom()">🚪 離開</button>
+    </div>
+    <div id="lobby-body">
+        <!-- 玩家列表 -->
+        <div id="lobby-players-panel">
+            <h3>👥 玩家 (<span id="lobby-player-count">0</span>)</h3>
+            <div id="lobby-player-list"></div>
+        </div>
+        <!-- 右側聊天+開局 -->
+        <div id="lobby-right">
+            <div id="lobby-chat-area">
+                <div id="lobby-chat-msgs"></div>
+                <div id="lobby-chat-input-row">
+                    <input type="text" id="lobby-chat-input" placeholder="說點什麼..." maxlength="60" onkeydown="if(event.key==='Enter')sendLobbyChat()">
+                    <button id="lobby-chat-send" onclick="sendLobbyChat()">➤</button>
+                </div>
+            </div>
+            <!-- 房主設定(只有房主看到) -->
+            <div id="lobby-host-controls" style="display:none;">
+                <h3>👑 房主設定</h3>
+                <div class="input-inline-sm">
+                    <div><label>初始本金</label><input type="number" id="start-balance" value="1000"></div>
+                    <div><label>底注</label><input type="number" id="entry-fee" value="100"></div>
+                    <div><label>棄牌罰金</label><input type="number" id="fold-penalty" value="20"></div>
+                </div>
+                <div class="input-inline-sm">
+                    <div>
+                        <label>牌組數</label>
+                        <select id="deck-count">
+                            <option value="1">1副</option>
+                            <option value="2" selected>2副</option>
+                            <option value="3">3副</option>
+                            <option value="4">4副</option>
+                        </select>
+                    </div>
+                    <div style="justify-content:flex-end;flex-direction:row;align-items:center;gap:6px;padding-top:14px;">
+                        <input type="checkbox" id="auto-refill" checked>
+                        <label style="color:#aaa;font-size:0.78rem;">自動補底</label>
+                    </div>
+                </div>
+                <button class="btn-main" onclick="hostStartGame()">✅ 開始遊戲</button>
+            </div>
+            <div id="lobby-waiting-msg">⏳ 等待房主開始遊戲...</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ BGM 控制器 ══ -->
+<div id="bgm-ctrl">
+    <button id="bgm-toggle-btn" onclick="toggleBgm()" title="背景音樂">🎵</button>
+    <input type="range" id="bgm-vol" min="0" max="1" step="0.05" value="0.35" oninput="setBgmVol(this.value)" title="音量">
+    <span id="bgm-note">BGM</span>
+</div>
+
+<!-- ══ 遊戲畫面 ══ -->
+<div id="game-screen">
+    <div id="table-wrap">
+        <div id="oval">
+            <div id="table-center">
+                <div id="pool-display">💰 $<span id="pool-val">0</span></div>
+                <div id="status-msg"></div>
+                <div id="cards-and-deck">
+                    <div class="post-wrap"><div class="post-label">左柱</div><div id="c1" class="card hidden">?</div></div>
+                    <div class="connector"></div>
+                    <div class="post-wrap">
+                        <div class="post-label gate">🐉 龍門</div>
+                        <div class="gate-frame" id="gate-frame">
+                            <span class="gate-inner-text" id="gate-inner">待射門</span>
+                            <div id="c3-in-gate"></div>
+                        </div>
+                    </div>
+                    <div class="connector r"></div>
+                    <div class="post-wrap"><div class="post-label">右柱</div><div id="c2" class="card hidden">?</div></div>
+                    <div style="width:2px;height:50px;background:rgba(255,255,255,0.1);margin:0 3px;align-self:center;flex-shrink:0;"></div>
+                    <div class="post-wrap" style="position:relative;">
+                        <div class="post-label" style="color:#aaa;">牌庫</div>
+                        <div id="deck-stack" onclick="onDeckClick()">
+                            <div class="dk"></div><div class="dk"></div>
+                            <div class="dk">🂠<span id="deck-badge">0</span></div>
+                        </div>
+                        <div id="deck-hint">點擊抽牌</div>
+                    </div>
+                </div>
+                <div style="font-size:clamp(7px,1.3vmin,10px);color:#888;margin-top:1px;">剩 <span id="cards-left">0</span> 張</div>
+            </div>
+
+            <div id="seats-layer"></div>
+
+            <!-- 下注面板 -->
+            <div id="bet-panel">
+                <div class="chip-row">
+                    <button class="chip-btn" onclick="addBet(10)"><img src="pic/m10.jpg" onerror="this.outerHTML='<div onclick=\'addBet(10)\' style=\'width:34px;height:34px;border-radius:50%;background:#27ae60;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>10</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(50)"><img src="pic/m50.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(50)\' style=\'width:34px;height:34px;border-radius:50%;background:#2980b9;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>50</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(100)"><img src="pic/m100.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(100)\' style=\'width:34px;height:34px;border-radius:50%;background:#8e44ad;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>100</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(500)"><img src="pic/m500.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(500)\' style=\'width:34px;height:34px;border-radius:50%;background:#e67e22;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>500</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(1000)"><img src="pic/m1000.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(1000)\' style=\'width:34px;height:34px;border-radius:50%;background:#c0392b;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>1K</div>'"></button>
+                </div>
+                <div class="bet-divider"></div>
+                <div class="bet-actions">
+                    <input type="number" id="bet-amount" value="0" readonly>
+                    <button class="btn-clear" onclick="document.getElementById('bet-amount').value=0">✕</button>
+                </div>
+                <div class="bet-divider"></div>
+                <div class="action-row">
+                    <button class="btn-up" id="btn-up" onclick="handleAction('up')" style="display:none;">⬆ 猜大</button>
+                    <button class="btn-down" id="btn-down" onclick="handleAction('down')" style="display:none;">⬇ 猜小</button>
+                    <button class="btn-allin" onclick="setAllIn()">💥 ALL IN</button>
+                    <button class="btn-fold" onclick="handleAction('fold')">🏳 棄牌($<span id="fold-cost-ui">0</span>)</button>
+                </div>
+            </div>
+
+            <!-- 遊戲內聊天 -->
+            <div id="game-chat-toggle" onclick="toggleGameChat()">
+                💬<span class="chat-unread" id="chat-unread"></span>
+            </div>
+            <div id="game-chat-panel">
+                <div id="game-chat-msgs"></div>
+                <div id="game-chat-input-row">
+                    <input type="text" id="game-chat-input" placeholder="說點什麼..." maxlength="60" onkeydown="if(event.key==='Enter')sendGameChat()">
+                    <button id="game-chat-send" onclick="sendGameChat()">➤</button>
+                </div>
+            </div>
+
+            <!-- ══ Emoji 面板 (5個一列 × 3行 = 15個) ══ -->
+            <button id="emoji-toggle" onclick="toggleEmojiBar()" title="表情符號">😄</button>
+            <div id="emoji-bar">
+                <div class="emoji-label">挑釁</div>
+                <div class="emoji-grid">
+                    <button class="emoji-btn" title="哈哈你輸了" onclick="sendEmoji('😂')">😂</button>
+                    <button class="emoji-btn" title="菜"        onclick="sendEmoji('🐔')">🐔</button>
+                    <button class="emoji-btn" title="跪下"      onclick="sendEmoji('🧎')">🧎</button>
+                    <button class="emoji-btn" title="眼神死"    onclick="sendEmoji('💀')">💀</button>
+                    <button class="emoji-btn" title="你在看我?" onclick="sendEmoji('👀')">👀</button>
+                </div>
+                <div class="emoji-label" style="margin-top:4px;">搞笑</div>
+                <div class="emoji-grid">
+                    <button class="emoji-btn" title="我要全部"  onclick="sendEmoji('💸')">💸</button>
+                    <button class="emoji-btn" title="噴了"      onclick="sendEmoji('💩')">💩</button>
+                    <button class="emoji-btn" title="大笑"      onclick="sendEmoji('🤣')">🤣</button>
+                    <button class="emoji-btn" title="裝沒事"    onclick="sendEmoji('🙃')">🙃</button>
+                    <button class="emoji-btn" title="我裂了"    onclick="sendEmoji('🫠')">🫠</button>
+                </div>
+                <div class="emoji-label" style="margin-top:4px;">牌桌</div>
+                <div class="emoji-grid">
+                    <button class="emoji-btn" title="火"        onclick="sendEmoji('🔥')">🔥</button>
+                    <button class="emoji-btn" title="拿好"      onclick="sendEmoji('🃏')">🃏</button>
+                    <button class="emoji-btn" title="王"        onclick="sendEmoji('👑')">👑</button>
+                    <button class="emoji-btn" title="哭了"      onclick="sendEmoji('😭')">😭</button>
+                    <button class="emoji-btn" title="掰掰"      onclick="sendEmoji('👋')">👋</button>
+                </div>
+            </div>
+
+            <!-- 工具列 -->
+            <div id="tools">
+                <button class="tool-btn leave" onclick="leaveRoom()">🚪 離開</button>
+                <button class="tool-btn" id="host-reset-btn" onclick="hostResetToLobby()" style="display:none;">🚨 重製</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="display:none;">
+    <div id="main-board"><div id="bet-controls"></div><div id="player-deal-btn"></div><div id="host-controls"></div></div>
+    <div id="player-area-wrapper"><div id="player-area"></div></div>
+</div>
+
+<script>
+/* ════ Firebase ════ */
+const firebaseConfig = {
+    apiKey:"AIzaSyDzd-2ZUgrDM8K_85_qSOgpkWuWNzBUBL8",
+    authDomain:"dargongatepoker.firebaseapp.com",
+    databaseURL:"https://dargongatepoker-default-rtdb.firebaseio.com",
+    projectId:"dargongatepoker",
+    storageBucket:"dargongatepoker.firebasestorage.app",
+    messagingSenderId:"204663560828",
+    appId:"1:204663560828:web:9ede7b6190babde73f07f9"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const gameRef  = db.ref('dragonGate/room1');
+const chatRef  = db.ref('dragonGate/chat');
+
+/* ════ 全域狀態 ════ */
+let myId='', myName='', localData={};
+let lastEffectId='INITIAL', lastShotId='INITIAL', lastEmojiTime=0;
+let serverOffset=0, wasMyturn=false, emojiBarOpen=false;
+let gameChatOpen=false, chatUnreadCount=0;
+let lastChatTime=0;
+const labels={1:'A',11:'J',12:'Q',13:'K'};
+const RECONNECT_WINDOW=60*1000, KICK_GRACE=10*1000;
+
+db.ref('.info/serverTimeOffset').on('value', s => serverOffset=s.val());
+function getServerNow(){ return Date.now()+serverOffset; }
+
+/* ════ 音效 & BGM (iOS/Android 完整相容) ════ */
+// iOS Safari: 音量無法透過 HTMLMediaElement.volume 控制，改用 WebAudio GainNode
+// iOS Safari: video/audio 必須在同步的用戶手勢 call stack 內呼叫 play()
+
+let _audioCtx = null;
+let _bgmSource = null;
+let _bgmGain = null;
+let _bgmBuffer = null;
+let _bgmPlaying = false;
+let _bgmVol = 0.35;
+let _audioUnlocked = false;
+// 用 HTML audio 做 SFX（較簡單，unlock 後即可）
+// BGM 改用 WebAudio API 以支援 iOS 音量控制
+
+function getAudioCtx(){
+    if(!_audioCtx){
+        try{ _audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+    }
+    return _audioCtx;
+}
+
+function unlockAudio(){
+    if(_audioUnlocked) return;
+    _audioUnlocked = true;
+
+    // 1) 建立 AudioContext（iOS 需要在手勢內）
+    const ctx = getAudioCtx();
+    if(ctx && ctx.state === 'suspended'){
+        ctx.resume().catch(()=>{});
+    }
+    // 2) 用靜音 buffer 解鎖 AudioContext
+    if(ctx){
+        try{
+            const buf = ctx.createBuffer(1,1,22050);
+            const src = ctx.createBufferSource();
+            src.buffer=buf; src.connect(ctx.destination); src.start(0);
+        }catch(e){}
+    }
+    // 3) 解鎖所有 HTML audio SFX（iOS 需要在手勢內觸發過一次）
+    document.querySelectorAll('audio').forEach(el=>{
+        if(el.id==='bgm') return;
+        const savedVol = el.volume;
+        el.volume = 0;
+        el.play().catch(()=>{}).finally(()=>{
+            el.pause(); el.currentTime=0; el.volume=savedVol||1;
+        });
+    });
+    // 4) iOS: 讓 allin-video 也在手勢內 load/解鎖
+    const vid = document.getElementById('allin-video');
+    if(vid){
+        vid.load();
+        // 靜音播一下再暫停，讓 iOS 知道這個 video 是被允許的
+        vid.muted = true;
+        vid.play().catch(()=>{}).finally(()=>{ vid.pause(); vid.currentTime=0; });
+    }
+    // 5) 嘗試啟動 BGM（WebAudio fetch）
+    startBgmWebAudio();
+}
+
+function startBgmWebAudio(){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    // 先試用 HTML Audio element（fallback）
+    startBgmHtmlFallback();
+}
+
+function startBgmHtmlFallback(){
+    // BGM 仍用 HTML audio，但音量靠 GainNode（透過 createMediaElementSource）
+    const bgm = document.getElementById('bgm');
+    if(!bgm) return;
+    const ctx = getAudioCtx();
+    if(!ctx){ bgm.volume=_bgmVol; bgm.play().then(()=>{ _bgmPlaying=true; updateBgmBtn(); }).catch(()=>{}); return; }
+    // 只連接一次
+    if(!bgm._gainConnected){
+        bgm._gainConnected = true;
+        try{
+            _bgmGain = ctx.createGain();
+            _bgmGain.gain.value = _bgmVol;
+            const src = ctx.createMediaElementSource(bgm);
+            src.connect(_bgmGain);
+            _bgmGain.connect(ctx.destination);
+        }catch(e){
+            // createMediaElementSource 只能呼叫一次，若失敗就 fallback
+            bgm._gainConnected = false;
+        }
+    }
+    bgm.loop = true;
+    bgm.volume = 1; // 音量全交給 GainNode，iOS 不支援此設定但不影響
+    const p = bgm.play();
+    if(p && p.then){
+        p.then(()=>{ _bgmPlaying=true; updateBgmBtn(); })
+         .catch(()=>{ _bgmPlaying=false; updateBgmBtn(); });
+    }
+}
+
+function toggleBgm(){
+    unlockAudio();
+    const bgm = document.getElementById('bgm');
+    if(!bgm) return;
+    if(_bgmPlaying){
+        bgm.pause(); _bgmPlaying=false;
+    } else {
+        bgm.loop=true; bgm.volume=1;
+        bgm.play().then(()=>{ _bgmPlaying=true; }).catch(()=>{ _bgmPlaying=false; });
+        _bgmPlaying=true;
+    }
+    updateBgmBtn();
+}
+
+function setBgmVol(v){
+    _bgmVol = parseFloat(v);
+    // iOS: 用 GainNode 控制音量
+    if(_bgmGain){
+        _bgmGain.gain.setTargetAtTime(_bgmVol, getAudioCtx().currentTime, 0.05);
+    } else {
+        const bgm = document.getElementById('bgm');
+        if(bgm) try{ bgm.volume=_bgmVol; }catch(e){}
+    }
+    if(_bgmVol > 0 && !_bgmPlaying && _audioUnlocked){ startBgmHtmlFallback(); }
+}
+
+function updateBgmBtn(){
+    const btn = document.getElementById('bgm-toggle-btn');
+    if(!btn) return;
+    btn.innerText = _bgmPlaying ? '🎵' : '🔇';
+    btn.classList.toggle('playing', _bgmPlaying);
+    btn.title = _bgmPlaying ? '關閉背景音樂' : '開啟背景音樂';
+}
+
+// ALL IN 時透過 GainNode 壓低 BGM
+function bgmDuck(on){
+    const target = on ? _bgmVol * 0.12 : _bgmVol;
+    if(_bgmGain && _audioCtx){
+        _bgmGain.gain.setTargetAtTime(target, _audioCtx.currentTime, 0.08);
+    } else {
+        const bgm = document.getElementById('bgm');
+        if(bgm && _bgmPlaying) try{ bgm.volume = target; }catch(e){}
+    }
+}
+
+function playSfx(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.currentTime = 0;
+    try{ el.volume = 1; }catch(e){}
+    const p = el.play();
+    if(p && p.catch) p.catch(()=>{});
+}
+
+// ══ iOS All-In 影片：在 confirmAllIn 手勢當下就 play()，顯示 overlay ══
+let _allinVideoReady = false;
+function prepareAllinVideo(){
+    // 在用戶手勢內預先 play()→pause()，讓 iOS 允許後續自動播放
+    const vid = document.getElementById('allin-video');
+    if(!vid || _allinVideoReady) return;
+    vid.muted = false; // 嘗試有聲
+    vid.currentTime = 0;
+    const p = vid.play();
+    if(p && p.then){
+        p.then(()=>{
+            _allinVideoReady = true;
+            // 立即暫停，等 Firebase 觸發時再 seek(0)+play
+            vid.pause(); vid.currentTime = 0;
+        }).catch(()=>{
+            // 無聲版 fallback
+            vid.muted = true;
+            vid.play().then(()=>{ _allinVideoReady=true; vid.pause(); vid.currentTime=0; }).catch(()=>{});
+        });
+    }
+}
+
+/* ════ 畫面切換 ════ */
+function showScreen(name){
+    document.getElementById('login-screen').style.display  = name==='login'  ? 'flex' : 'none';
+    document.getElementById('lobby-screen').style.display  = name==='lobby'  ? 'flex' : 'none';
+    document.getElementById('game-screen').style.display   = name==='game'   ? 'block': 'none';
+    // BGM 音量依畫面調整
+    const bgm = document.getElementById('bgm');
+    if(bgm && _bgmPlaying){
+        if(name==='game') bgm.volume = _bgmVol;
+        else bgm.volume = _bgmVol * 0.55; // 大廳稍低
+    }
+    // BGM 控制器只在登入後顯示
+    const ctrl = document.getElementById('bgm-ctrl');
+    if(ctrl) ctrl.style.display = name==='login' ? 'none' : 'flex';
+}
+
+/* ════ 聊天 (保留最近 20 條) ════ */
+function renderChatMsg(data, targetId, myCheck){
+    const el = document.getElementById(targetId);
+    if(!el) return;
+    const isSystem = !data.name;
+    const isMe = data.uid === myId;
+    const div = document.createElement('div');
+    div.className = 'chat-msg' + (isSystem?' system':'') + (isMe?' is-me':'');
+    if(isSystem){
+        div.innerHTML = `<span style="color:#666;">⚙️ ${data.text}</span>`;
+    } else {
+        div.innerHTML = `<span class="chat-name">${data.name}</span>${data.text}`;
+    }
+    el.appendChild(div);
+    // 保留最近 20 條
+    while(el.children.length > 20) el.removeChild(el.firstChild);
+    el.scrollTop = el.scrollHeight;
+}
+
+function sendLobbyChat(){
+    const input = document.getElementById('lobby-chat-input');
+    const text = input.value.trim();
+    if(!text || !myId) return;
+    chatRef.push({ uid:myId, name:myName, text, time:firebase.database.ServerValue.TIMESTAMP });
+    input.value='';
+}
+
+function sendGameChat(){
+    const input = document.getElementById('game-chat-input');
+    const text = input.value.trim();
+    if(!text || !myId) return;
+    chatRef.push({ uid:myId, name:myName, text, time:firebase.database.ServerValue.TIMESTAMP });
+    input.value='';
+}
+
+function startChatListener(){
+    // 監聽最後 20 條,只接收「比進入時更新的」
+    chatRef.limitToLast(20).on('child_added', snap => {
+        const d = snap.val();
+        if(!d || d.time <= lastChatTime) return;
+        // 同步到大廳聊天
+        renderChatMsg(d, 'lobby-chat-msgs', true);
+        // 同步到遊戲內聊天
+        renderChatMsg(d, 'game-chat-msgs', true);
+        // 遊戲內未讀提示
+        if(!gameChatOpen && d.uid !== myId){
+            chatUnreadCount++;
+            const badge = document.getElementById('chat-unread');
+            if(badge){ badge.innerText=chatUnreadCount; badge.classList.add('show'); }
+        }
+    });
+}
+
+function toggleGameChat(){
+    gameChatOpen = !gameChatOpen;
+    const panel = document.getElementById('game-chat-panel');
+    const btn   = document.getElementById('game-chat-toggle');
+    const badge = document.getElementById('chat-unread');
+    if(gameChatOpen){
+        panel.style.display='flex'; btn.classList.add('open');
+        chatUnreadCount=0; if(badge){ badge.classList.remove('show'); }
+        document.getElementById('game-chat-msgs').scrollTop = 9999;
+    } else {
+        panel.style.display='none'; btn.classList.remove('open');
+    }
+}
+
+/* ════ Emoji ════ */
+function toggleEmojiBar(){
+    emojiBarOpen=!emojiBarOpen;
+    const bar=document.getElementById('emoji-bar'), btn=document.getElementById('emoji-toggle');
+    if(emojiBarOpen){ bar.style.display='block'; btn.classList.add('open'); btn.innerText='✕'; }
+    else{ bar.style.display='none'; btn.classList.remove('open'); btn.innerText='😄'; }
+}
+function sendEmoji(icon){
+    gameRef.update({lastEmoji:{name:myName,icon,time:firebase.database.ServerValue.TIMESTAMP}});
+    if(emojiBarOpen) toggleEmojiBar();
+}
+function showEmojiBroadcast(name,icon){
+    const a=document.getElementById('emoji-broadcast-area');
+    const d=document.createElement('div'); d.className='broadcast-item';
+    d.innerText=`${name}: ${icon}`; a.appendChild(d); setTimeout(()=>d.remove(),2500);
+}
+
+/* ════ Toasts ════ */
+let myTurnTimer=null;
+function showMyTurnToast(){
+    const t=document.getElementById('my-turn-toast'); t.style.display='block';
+    if('vibrate' in navigator) navigator.vibrate([150,50,150]);
+    clearTimeout(myTurnTimer); myTurnTimer=setTimeout(()=>t.style.display='none',3000);
+}
+let refillTimer=null;
+function showRefillToast(fee,count){
+    const t=document.getElementById('refill-toast');
+    t.innerText=`💰 池金不足,每人補底 $${fee}(共補 $${fee*count})`;
+    t.style.display='block'; clearTimeout(refillTimer); refillTimer=setTimeout(()=>t.style.display='none',3500);
+}
+function showReconnectToast(msg,duration){
+    const t=document.getElementById('reconnect-toast'); t.innerHTML=msg; t.style.display='block';
+    if(duration) setTimeout(()=>t.style.display='none',duration);
+}
+function hideReconnectToast(){ document.getElementById('reconnect-toast').style.display='none'; }
+
+/* ════ 座位渲染 ════ */
+function renderSeats(){
+    const layer=document.getElementById('seats-layer');
+    if(!layer||!localData.players) return;
+    layer.innerHTML='';
+    const pKeys=Object.keys(localData.players);
+    if(pKeys.length===0) return;
+
+    pKeys.forEach((id,i)=>{
+        const p=localData.players[id];
+        const isMe=(id===myId), isHost=(i===0);
+        const isActive=(id===localData.currentPlayerKey);
+        const isKicked=!!p.kickedAt;
+
+        let cx,cy;
+        if(isMe){
+            cx=50; cy=88;
+        } else {
+            const others=pKeys.filter(k=>k!==myId);
+            const oi=others.indexOf(id), oc=others.length;
+            const rx=42,ry=36;
+            const startDeg=210,endDeg=330;
+            const deg=oc===1?270:startDeg+(oi/(oc-1))*(endDeg-startDeg);
+            const rad=deg*Math.PI/180;
+            cx=50+rx*Math.cos(rad); cy=50+ry*Math.sin(rad);
+        }
+
+        const crown=isHost?' 👑':'';
+        let tmr='';
+        if(isActive&&localData.lastActionTime&&!isKicked){
+            const sec=Math.max(0,60-Math.floor((getServerNow()-localData.lastActionTime)/1000));
+            const pct=Math.round(sec/60*100);
+            const warnCls=sec<15?'warn':'';
+            tmr=`<div class="seat-tmr">⏱${sec}s</div><div class="seat-timer-bar-wrap"><div class="seat-timer-bar ${warnCls}" style="width:${pct}%"></div></div>`;
+        }
+        if(isKicked){
+            const remain=Math.max(0,Math.ceil((p.kickedAt+KICK_GRACE-getServerNow())/1000));
+            tmr=`<div class="seat-tmr">🚫 ${remain}s後移除</div>`;
+        }
+
+        const boxCls=['seat-box',isActive&&!isKicked?'active':'',isMe?'is-me':'',isKicked?'kicked':''].filter(Boolean).join(' ');
+        const node=document.createElement('div');
+        node.className='seat'+(isMe?' is-me':'');
+        node.style.left=cx+'%'; node.style.top=cy+'%';
+        const kickBtn=(!isKicked)?`<button class="seat-kick" onclick="kickPlayer('${id}')">✕</button>`:'';
+        node.innerHTML=`${kickBtn}<div class="${boxCls}"><div class="seat-name">${p.name}${crown}</div><div class="seat-bal">$${p.balance}</div>${tmr}</div>`;
+
+        const boxEl=node.querySelector('.seat-box');
+        boxEl.addEventListener('click',e=>{
+            if(e.target.classList.contains('seat-kick')) return;
+            const exp=boxEl.classList.contains('expanded');
+            document.querySelectorAll('.seat-box.expanded').forEach(el=>el.classList.remove('expanded'));
+            if(!exp) boxEl.classList.add('expanded');
+        });
+        layer.appendChild(node);
+    });
+
+    document.getElementById('oval').addEventListener('click',e=>{
+        if(!e.target.closest('.seat-box'))
+            document.querySelectorAll('.seat-box.expanded').forEach(el=>el.classList.remove('expanded'));
+    });
+
+    const oval=document.getElementById('oval');
+    if(oval){
+        if(localData.currentPlayerKey===myId) oval.classList.add('my-turn');
+        else oval.classList.remove('my-turn');
+    }
+}
+
+/* ════ 大廳玩家列表渲染 ════ */
+function renderLobbyPlayers(){
+    if(!localData.players) return;
+    const pKeys=Object.keys(localData.players);
+    document.getElementById('lobby-player-count').innerText=pKeys.length;
+    const list=document.getElementById('lobby-player-list');
+    list.innerHTML='';
+    pKeys.forEach((id,i)=>{
+        const p=localData.players[id];
+        const isMe=(id===myId), isHost=(i===0);
+        const div=document.createElement('div');
+        div.className='lobby-player-item'+(isHost?' is-host':'')+(isMe?' is-me':'');
+        div.innerHTML=`<span class="lobby-player-dot"></span><span class="lobby-player-name">${p.name}</span>${isHost?'<span class="lobby-player-crown">👑</span>':''}${isMe?'<span style="color:#74b9ff;font-size:0.75rem;">(我)</span>':''}`;
+        list.appendChild(div);
+    });
+}
+
+/* ════ 加入房間 ════ */
+function joinRoom(){
+    unlockAudio();
+    const name=document.getElementById('my-name').value.trim();
+    if(!name) return alert('請輸入暱稱');
+    myName=name;
+
+    const savedId=localStorage.getItem('dgp_myId');
+    const savedName=localStorage.getItem('dgp_myName');
+    const savedTime=parseInt(localStorage.getItem('dgp_savedAt')||'0');
+    const now=Date.now();
+    const canReconnect=savedId&&savedName===name&&(now-savedTime<RECONNECT_WINDOW);
+
+    if(canReconnect){
+        gameRef.child('players/'+savedId).once('value',snap=>{
+            const existing=snap.val();
+            if(existing&&!existing.kickedAt){
+                myId=savedId; saveMyId(name);
+                gameRef.child('players/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
+                showReconnectToast('🔄 重連成功',2000);
+                startListening();
+            } else if(existing&&existing.kickedAt){
+                showReconnectToast('⏳ 等待座位釋放...');
+                const chk=setInterval(()=>{
+                    gameRef.child('players/'+savedId).once('value',s2=>{
+                        if(!s2.val()){ clearInterval(chk); hideReconnectToast(); createNewPlayer(name); }
+                    });
+                },1000);
+            } else { createNewPlayer(name); }
+        });
+    } else { createNewPlayer(name); }
+}
+
+function createNewPlayer(name){
+    gameRef.once('value',snap=>{
+        const data=snap.val()||{};
+        const players=data.players||{};
+        const now=getServerNow();
+        Object.keys(players).forEach(id=>{
+            const p=players[id];
+            if(!p.kickedAt&&(!p.lastActive||now-p.lastActive>70000)) gameRef.child('players/'+id).remove();
+        });
+        const pKeys=Object.keys(players).filter(id=>!players[id].kickedAt||(now-players[id].kickedAt<KICK_GRACE));
+        if(pKeys.length===0) gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null});
+
+        const newRef=gameRef.child('players').push();
+        myId=newRef.key; saveMyId(name);
+        gameRef.child('players/'+myId).set({name,balance:0,lastActive:firebase.database.ServerValue.TIMESTAMP});
+
+        if(data.allInTrigger) lastEffectId=data.allInTrigger;
+        if(data.lastEmoji)    lastEmojiTime=data.lastEmoji.time;
+        if(data.lastShot)     lastShotId=data.lastShot.id;
+        lastChatTime=getServerNow();
+
+        // 系統訊息
+        chatRef.push({uid:'system',text:`${name} 進入大廳`,time:firebase.database.ServerValue.TIMESTAMP});
+
+        startListening();
+        startChatListener();
+    });
+}
+
+function saveMyId(name){
+    localStorage.setItem('dgp_myId',myId);
+    localStorage.setItem('dgp_myName',name);
+    localStorage.setItem('dgp_savedAt',Date.now().toString());
+}
+
+/* ════ 離開房間 ════ */
+function leaveRoom(){
+    if(!confirm('確定離開房間?')) return;
+    doLeave();
+}
+function doLeave(){
+    if(!myId) return;
+    const pKeys=localData.players?Object.keys(localData.players):[];
+    const isHost=pKeys[0]===myId;
+    const wasActive=localData.currentPlayerKey===myId;
+
+    // 系統訊息
+    chatRef.push({uid:'system',text:`${myName} 離開了房間`,time:firebase.database.ServerValue.TIMESTAMP});
+
+    // 移除自己
+    gameRef.child('players/'+myId).remove().then(()=>{
+        const remaining=pKeys.filter(k=>k!==myId);
+        if(remaining.length===0){
+            gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null});
+        } else if(wasActive){
+            const active=remaining.filter(k=>localData.players[k]&&!localData.players[k].kickedAt);
+            gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||remaining[0]||null,lastActionTime:firebase.database.ServerValue.TIMESTAMP});
+        }
+    });
+
+    localStorage.removeItem('dgp_myId');
+    localStorage.removeItem('dgp_myName');
+    localStorage.removeItem('dgp_savedAt');
+    myId=''; myName='';
+
+    gameRef.off(); chatRef.off();
+    showScreen('login');
+    document.getElementById('my-name').value='';
+}
+
+/* ════ 主監聽 ════ */
+function startListening(){
+    gameRef.on('value',snap=>{
+        localData=snap.val()||{};
+        if(!localData.players||!localData.players[myId]){
+            localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName'); localStorage.removeItem('dgp_savedAt');
+            gameRef.off(); chatRef.off();
+            showScreen('login'); document.getElementById('my-name').value='';
+            return;
+        }
+
+        const pKeys=Object.keys(localData.players);
+        const isHost=(pKeys[0]===myId);
+        document.body.className=isHost?'is-host':'';
+
+        // Emoji 廣播
+        if(localData.lastEmoji&&localData.lastEmoji.time>lastEmojiTime){
+            showEmojiBroadcast(localData.lastEmoji.name,localData.lastEmoji.icon);
+            lastEmojiTime=localData.lastEmoji.time;
+        }
+
+        // 飛牌廣播(其他人射的)
+        if(localData.lastShot&&localData.lastShot.id!==lastShotId){
+            const shot=localData.lastShot; lastShotId=shot.id;
+            if(shot.shooterId!==myId){
+                updateCard('c1',localData.c1); updateCard('c2',localData.c2);
+                document.getElementById('gate-inner').style.display='none';
+                animateShotCard(shot.card,shot.resultType,()=>{
+                    updateGateCard(localData.c3);
+                    const sfxMap={win:'sfx-win',crash:'sfx-crash',lose:'sfx-lose'};
+                    playSfx(sfxMap[shot.resultType]||'sfx-lose');
+                    if(shot.resultType==='win') spawnConfetti(40);
+                    showResultBanner(shot.emoji,shot.text,shot.delta,shot.resultType);
+                });
+            }
+        }
+
+        // ALL IN 影片
+        if(localData.allInTrigger&&localData.allInTrigger!==lastEffectId){
+            lastEffectId=localData.allInTrigger;
+            const vid = document.getElementById('allin-video');
+            const vbox = document.getElementById('video-box');
+            // 確保 video 在容器裡且可見
+            if(vid && !vbox.contains(vid)){
+                vbox.appendChild(vid);
+            }
+            if(vid){ vid.style.display='block'; }
+            document.getElementById('all-in-overlay').style.display='flex';
+            bgmDuck(true);
+            // 若是自己觸發（confirmAllIn 已播），只需顯示即可
+            // 若是其他人觸發（其他玩家 all in），則靜音播放
+            if(vid && vid.paused){
+                vid.currentTime=0; vid.muted=true;
+                vid.play().catch(()=>{});
+            }
+            setTimeout(()=>{
+                document.getElementById('all-in-overlay').style.display='none';
+                bgmDuck(false);
+                if(vid){ vid.pause(); vid.currentTime=0; vid.style.display='none'; }
+                // 把 video 移回 body 備用
+                document.body.appendChild(vid);
+            },2500);
+        }
+
+        if(localData.gameStarted){
+            showScreen('game');
+            document.getElementById('emoji-toggle').style.display='flex';
+            document.getElementById('emoji-bar').style.display='none';
+            document.getElementById('game-chat-toggle').style.display='flex';
+            document.getElementById('tools').style.display='flex';
+            emojiBarOpen=false;
+            document.getElementById('emoji-toggle').classList.remove('open');
+            document.getElementById('emoji-toggle').innerText='😄';
+            renderUI(isHost);
+            const isTurnNow=(localData.currentPlayerKey===myId);
+            if(isTurnNow&&!wasMyturn) showMyTurnToast();
+            wasMyturn=isTurnNow;
+        } else {
+            showScreen('lobby');
+            document.getElementById('emoji-toggle').style.display='none';
+            document.getElementById('emoji-bar').style.display='none';
+            document.getElementById('game-chat-toggle').style.display='none';
+            document.getElementById('tools').style.display='none';
+            document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
+            document.getElementById('lobby-waiting-msg').style.display=isHost?'none':'block';
+            wasMyturn=false;
+        }
+
+        document.getElementById('host-reset-btn').style.display=isHost?'block':'none';
+        renderSeats();
+        renderLobbyPlayers();
+    });
+}
+
+/* ════ 心跳 & 自動清理 ════ */
+setInterval(()=>{
+    if(myId&&localData.players&&localData.players[myId])
+        gameRef.child('players/'+myId).update({lastActive:getServerNow()});
+},5000);
+
+setInterval(()=>{
+    if(!localData.players) return;
+    const now=getServerNow(), players=localData.players;
+    const pKeys=Object.keys(players);
+    if(pKeys[0]!==myId) return; // 只有房主執行清理
+
+    pKeys.forEach(id=>{
+        const p=players[id];
+        if(p.kickedAt&&now-p.kickedAt>=KICK_GRACE){
+            gameRef.child('players/'+id).remove(); return;
+        }
+        if(!p.kickedAt&&id!==myId&&(!p.lastActive||now-p.lastActive>70000)){
+            gameRef.child('players/'+id).update({kickedAt:getServerNow()});
+        }
+    });
+
+    if(localData.gameStarted){
+        const cpKey=localData.currentPlayerKey;
+        if(cpKey&&players[cpKey]&&players[cpKey].kickedAt){
+            const active=pKeys.filter(k=>!players[k].kickedAt);
+            const ci=active.indexOf(cpKey);
+            const nextK=active[(ci+1)%active.length]||active[0]||null;
+            gameRef.update({gameState:'waiting_deal',currentPlayerKey:nextK,lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'玩家超時,移出座位'});
+        }
+        if(localData.lastActionTime){
+            const diff=(now-localData.lastActionTime)/1000;
+            const cpKey=localData.currentPlayerKey;
+            if(diff>60.5&&cpKey&&players[cpKey]&&!players[cpKey].kickedAt){
+                const ts=getServerNow();
+                gameRef.child('players/'+cpKey).update({kickedAt:ts}).then(()=>{
+                    const active=pKeys.filter(k=>!players[k].kickedAt&&k!==cpKey);
+                    gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||null,statusMsg:'玩家超時,移出座位',lastActionTime:firebase.database.ServerValue.TIMESTAMP});
+                });
+            }
+        }
+    }
+    renderSeats();
+},1000);
+
+/* ════ 踢玩家 ════ */
+function kickPlayer(id){
+    if(!confirm('剔除該玩家?(10秒後移除,期間可重連)')) return;
+    gameRef.child('players/'+id).update({kickedAt:getServerNow()});
+    chatRef.push({uid:'system',text:`${localData.players[id]?.name||'玩家'} 被踢出房間`,time:firebase.database.ServerValue.TIMESTAMP});
+    if(localData.currentPlayerKey===id){
+        const pKeys=Object.keys(localData.players);
+        const active=pKeys.filter(k=>k!==id&&!localData.players[k].kickedAt);
+        gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||null,lastActionTime:firebase.database.ServerValue.TIMESTAMP});
+    }
+}
+
+/* ════ 開局 ════ */
+function hostStartGame(){
+    const fee=parseInt(document.getElementById('entry-fee').value)||100;
+    const start=parseInt(document.getElementById('start-balance').value)||1000;
+    const decks=parseInt(document.getElementById('deck-count').value)||2;
+    const refill=document.getElementById('auto-refill').checked;
+    let players=localData.players, pool=0;
+    Object.keys(players).forEach(id=>{ players[id].balance=start-fee; pool+=fee; });
+
+    // 先切換到遊戲畫面讓動畫顯示
+    const deckData=generateDecks(decks);
+    gameRef.update({
+        gameStarted:true, deck:deckData, pool, entryFee:fee,
+        foldPenalty:parseInt(document.getElementById('fold-penalty').value)||20,
+        autoRefill:refill, deckCount:decks, gameState:'waiting_deal',
+        currentPlayerKey:Object.keys(players)[0], players,
+        lastActionTime:firebase.database.ServerValue.TIMESTAMP, statusMsg:'新局開始，請洗牌'
+    });
+    chatRef.push({uid:'system',text:'遊戲開始！',time:firebase.database.ServerValue.TIMESTAMP});
+    // 切換後播洗牌動畫（畫面已是 game，overlay 可顯示）
+    setTimeout(()=>{
+        playShuffleAnimation(()=>{
+            gameRef.update({statusMsg:'請點牌庫發牌'});
+        });
+    },400);
+}
+
+function drawGoalPost(){
+    playSfx('sfx-deal');
+    let deck=localData.deck||[];
+    if(deck.length<3) deck=generateDecks(localData.deckCount||2);
+    const c1=deck.pop(), c2=deck.pop();
+    gameRef.update({deck,c1,c2,c3:null,gameState:'waiting_shoot',lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'請下注後抽門牌'});
+}
+
+/* ════ 遊戲動作 ════ */
+function handleAction(type){
+    let bet=Math.abs(parseInt(document.getElementById('bet-amount').value))||0;
+    if(type!=='fold'&&(bet<1||bet>localData.pool)) return alert('請下注');
+    let p=localData.players[myId], nBal=p.balance, nPool=localData.pool;
+    let msg='', c3=null, deck=localData.deck||[];
+    let resultType='neutral', deltaAmount=0;
+
+    if(type==='fold'){
+        nBal-=localData.foldPenalty; nPool+=localData.foldPenalty;
+        msg=`${p.name} 棄牌`; resultType='fold'; deltaAmount=-localData.foldPenalty;
+    } else {
+        if(deck.length<1) deck=generateDecks(localData.deckCount||2);
+        c3=deck.pop();
+        const min=Math.min(localData.c1.val,localData.c2.val);
+        const max=Math.max(localData.c1.val,localData.c2.val);
+        if(localData.c1.val===localData.c2.val){
+            if(c3.val===localData.c1.val){ nBal-=bet*3; nPool+=bet*3; msg=`撞柱(-$${bet*3})`; resultType='crash'; deltaAmount=-(bet*3); }
+            else if((type==='up'&&c3.val>localData.c1.val)||(type==='down'&&c3.val<localData.c1.val)){ nBal+=bet; nPool-=bet; msg=`猜對(+$${bet})`; resultType='win'; deltaAmount=bet; }
+            else{ nBal-=bet; nPool+=bet; msg=`猜錯(-$${bet})`; resultType='lose'; deltaAmount=-bet; }
+        } else {
+            if(c3.val>min&&c3.val<max){ nBal+=bet; nPool-=bet; msg=`射進(+$${bet})`; resultType='win'; deltaAmount=bet; }
+            else if(c3.val===min||c3.val===max){ nBal-=bet*2; nPool+=bet*2; msg=`撞柱(-$${bet*2})`; resultType='crash'; deltaAmount=-(bet*2); }
+            else{ nBal-=bet; nPool+=bet; msg=`沒進(-$${bet})`; resultType='lose'; deltaAmount=-bet; }
+        }
+    }
+
+    const pKeys=Object.keys(localData.players);
+    const active=pKeys.filter(k=>!localData.players[k].kickedAt);
+    const myActiveIdx=active.indexOf(myId);
+    const nextK=active[(myActiveIdx+1)%active.length];
+
+    let updates={
+        [`players/${myId}/balance`]:nBal, pool:nPool, deck, c3:c3||null,
+        statusMsg:msg, gameState:'waiting_deal', currentPlayerKey:nextK,
+        lastActionTime:firebase.database.ServerValue.TIMESTAMP
+    };
+
+    const minPoolNeeded=localData.entryFee*active.length;
+    const needRefill=(localData.autoRefill&&nPool<minPoolNeeded)||(nPool<=0);
+    let refillTriggered=false;
+    if(needRefill){
+        let total=0;
+        active.forEach(k=>{ const cb=(k===myId)?nBal:localData.players[k].balance; updates[`players/${k}/balance`]=cb-localData.entryFee; total+=localData.entryFee; });
+        updates.pool=nPool+total; refillTriggered=true;
+    }
+
+    if(type!=='fold'&&c3){
+        updates.lastShot={
+            id:Date.now().toString(), shooterId:myId, card:c3, resultType,
+            emoji:resultType==='win'?'🎉':resultType==='crash'?'💥':'😭',
+            text:resultType==='win'?(type==='up'||type==='down'?'猜對!':'射進!'):resultType==='crash'?'撞柱!!':(type==='up'||type==='down'?'猜錯了':'沒進...'),
+            delta:deltaAmount
+        };
+    }
+
+    gameRef.update(updates);
+    document.getElementById('bet-amount').value=0;
+
+    if(type!=='fold'&&c3){
+        document.getElementById('gate-inner').style.display='none';
+        animateShotCard(c3,resultType,()=>{
+            updateGateCard(c3);
+            if(resultType==='win'){ playSfx('sfx-win'); spawnConfetti(40); showResultBanner('🎉',type==='up'?'猜對!':'射進!',deltaAmount,'win'); }
+            else if(resultType==='crash'){ playSfx('sfx-crash'); showResultBanner('💥','撞柱!!',deltaAmount,'crash'); }
+            else{ playSfx('sfx-lose'); showResultBanner('😭',type==='up'||type==='down'?'猜錯了':'沒進...',deltaAmount,'lose'); }
+            if(refillTriggered) showRefillToast(localData.entryFee,active.length);
+        });
+    } else {
+        playSfx('sfx-fold');
+        showResultBanner('🏳️','棄牌',deltaAmount,'fold');
+        if(refillTriggered) showRefillToast(localData.entryFee,active.length);
+    }
+}
+
+function onDeckClick(){
+    unlockAudio();
+    if(!localData.gameStarted) return;
+    if(localData.currentPlayerKey!==myId) return;
+    if(localData.gameState==='waiting_deal'){
+        drawGoalPost();
+    } else if(localData.gameState==='waiting_shoot'){
+        const bet=Math.abs(parseInt(document.getElementById('bet-amount').value))||0;
+        const isSame=localData.c1&&localData.c2&&localData.c1.val===localData.c2.val;
+        if(bet<1||bet>localData.pool){
+            const h=document.getElementById('deck-hint');
+            h.innerText='⚠️ 請先下注!'; h.classList.add('show');
+            setTimeout(()=>{ h.innerText='下注後點擊射門'; },1500); return;
+        }
+        if(isSame){
+            const h=document.getElementById('deck-hint');
+            h.innerText='⚠️ 請猜大或猜小'; h.classList.add('show');
+            setTimeout(()=>{ h.innerText='猜大/猜小'; },1500);
+        } else { handleAction('shoot'); }
+    }
+}
+
+/* ════ renderUI ════ */
+function renderUI(isHost){
+    const poolEl = document.getElementById('pool-val');
+    const newPool = localData.pool||0;
+    if(poolEl.innerText !== String(newPool)){
+        poolEl.innerText = newPool;
+        poolEl.classList.remove('pool-pop');
+        // reflow trick
+        void poolEl.offsetWidth;
+        poolEl.classList.add('pool-pop');
+        setTimeout(()=>poolEl.classList.remove('pool-pop'),500);
+    }
+    document.getElementById('status-msg').innerText=localData.statusMsg||'';
+    document.getElementById('cards-left').innerText=localData.deck?localData.deck.length:0;
+    document.getElementById('fold-cost-ui').innerText=localData.foldPenalty||20;
+    updateCard('c1',localData.c1); updateCard('c2',localData.c2); updateGateCard(localData.c3);
+
+    const isTurn=(localData.currentPlayerKey===myId);
+    const isSame=localData.c1&&localData.c2&&localData.c1.val===localData.c2.val;
+    const deckEl=document.getElementById('deck-stack');
+    const hintEl=document.getElementById('deck-hint');
+    const badgeEl=document.getElementById('deck-badge');
+    if(badgeEl) badgeEl.innerText=localData.deck?localData.deck.length:0;
+
+    if(isTurn&&localData.gameState==='waiting_deal'){ deckEl.classList.add('can-click'); hintEl.innerText='點擊抽牌'; hintEl.classList.add('show'); }
+    else if(isTurn&&localData.gameState==='waiting_shoot'){ deckEl.classList.add('can-click'); hintEl.innerText=isSame?'猜大/猜小':'下注後點擊射門'; hintEl.classList.add('show'); }
+    else{ deckEl.classList.remove('can-click'); hintEl.classList.remove('show'); }
+
+    document.getElementById('bet-panel').style.display=(isTurn&&localData.gameState==='waiting_shoot')?'flex':'none';
+    document.getElementById('btn-up').style.display=isSame?'inline-block':'none';
+    document.getElementById('btn-down').style.display=isSame?'inline-block':'none';
+}
+
+/* ════ 牌區更新 ════ */
+function updateGateCard(c){
+    const gi=document.getElementById('gate-inner'), c3g=document.getElementById('c3-in-gate');
+    if(!c){ gi.style.display=''; gi.innerText='待射門'; c3g.style.display='none'; c3g.innerHTML=''; }
+    else{
+        gi.style.display='none';
+        const isRed=c.suit==='♥'||c.suit==='♦'; c3g.style.display='block';
+        const w='clamp(44px,7.5vmin,68px)',h='clamp(62px,10.5vmin,96px)';
+        c3g.innerHTML=`<div class="card${isRed?' red':''}" style="width:${w};height:${h};">${c.suit}\n${c.label}</div>`;
+    }
+}
+function updateCard(id,c){
+    const el=document.getElementById(id);
+    if(!c){ el.classList.add('hidden'); el.innerText='?'; }
+    else{ el.classList.remove('hidden'); el.innerText=`${c.suit}\n${c.label}`; el.classList.toggle('red',c.suit==='♥'||c.suit==='♦'); }
+}
+
+/* ════ 飛牌動畫 ════ */
+function animateShotCard(cardData,resultType,onDone){
+    const canvas=document.getElementById('shot-canvas'), ctx=canvas.getContext('2d');
+    canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+    function tr(rect){ return{x:rect.left+rect.width/2,y:rect.top+rect.height/2}; }
+    const gate=tr(document.getElementById('gate-frame').getBoundingClientRect());
+    const deck=tr(document.getElementById('deck-stack').getBoundingClientRect());
+    const lpost=tr(document.getElementById('c1').getBoundingClientRect());
+    const rpost=tr(document.getElementById('c2').getBoundingClientRect());
+    const isRed=cardData.suit==='♥'||cardData.suit==='♦';
+    const cardW=62,cardH=88;
+    let endX,endY;
+    if(resultType==='win'){ endX=gate.x; endY=gate.y; }
+    else if(resultType==='crash'){ const pp=Math.random()>0.5?lpost:rpost; endX=pp.x; endY=pp.y; }
+    else{ endX=Math.random()>0.5?-cardW:canvas.width+cardW; endY=gate.y-40; }
+    const cpX=(deck.x+endX)/2+(Math.random()-0.5)*100;
+    const cpY=Math.min(deck.y,endY)-150;
+    let t=0,rotation=0;
+
+    // 拖尾粒子
+    let trail=[];
+
+    function drawCard(x,y,rot,alpha,scale=1){
+        ctx.save(); ctx.globalAlpha=alpha; ctx.translate(x,y); ctx.rotate(rot); ctx.scale(scale,scale);
+        // 卡片陰影
+        ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=12; ctx.shadowOffsetX=3; ctx.shadowOffsetY=3;
+        ctx.fillStyle='#fff'; ctx.strokeStyle='#ccc'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.moveTo(-cardW/2+8,-cardH/2); ctx.lineTo(cardW/2-8,-cardH/2);
+        ctx.quadraticCurveTo(cardW/2,-cardH/2,cardW/2,-cardH/2+8);
+        ctx.lineTo(cardW/2,cardH/2-8); ctx.quadraticCurveTo(cardW/2,cardH/2,cardW/2-8,cardH/2);
+        ctx.lineTo(-cardW/2+8,cardH/2); ctx.quadraticCurveTo(-cardW/2,cardH/2,-cardW/2,cardH/2-8);
+        ctx.lineTo(-cardW/2,-cardH/2+8); ctx.quadraticCurveTo(-cardW/2,-cardH/2,-cardW/2+8,-cardH/2);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
+        // 花色
+        ctx.fillStyle=isRed?'#e74c3c':'#111'; ctx.font="bold 22px 'Segoe UI'";
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(cardData.suit,0,-12); ctx.fillText(cardData.label.toString(),0,14);
+        ctx.restore();
+    }
+
+    let particles=[];
+    function spawnCrash(x,y){ for(let i=0;i<28;i++){ const a=Math.random()*Math.PI*2,s=3+Math.random()*8; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,r:4+Math.random()*4,color:Math.random()>0.5?'#f39c12':'#e74c3c'}); } }
+    function spawnWin(x,y){ for(let i=0;i<40;i++){ const a=Math.random()*Math.PI*2,s=2+Math.random()*9; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,r:3+Math.random()*5,color:['#f1c40f','#2ecc71','#fff','#d4af37'][Math.floor(Math.random()*4)]}); } }
+
+    let phase='fly',it=0;
+    function frame(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+
+        if(phase==='fly'){
+            t++; const pp=t/55,e=pp<0.5?2*pp*pp:-1+(4-2*pp)*pp;
+            const bx=(1-e)*(1-e)*deck.x+2*(1-e)*e*cpX+e*e*endX;
+            const by=(1-e)*(1-e)*deck.y+2*(1-e)*e*cpY+e*e*endY;
+            rotation+=0.18;
+
+            // 拖尾
+            trail.push({x:bx,y:by,life:1});
+            trail.forEach(tr=>{ tr.life-=0.07; });
+            trail=trail.filter(tr=>tr.life>0);
+            trail.forEach(tr=>{
+                ctx.save(); ctx.globalAlpha=tr.life*0.35;
+                ctx.fillStyle=isRed?'rgba(231,76,60,0.5)':'rgba(100,150,255,0.4)';
+                ctx.beginPath(); ctx.arc(tr.x,tr.y,8*tr.life,0,Math.PI*2); ctx.fill();
+                ctx.restore();
+            });
+
+            drawCard(bx,by,rotation,Math.min(1,pp*3));
+            if(t>=55){ phase='impact'; if(resultType==='crash') spawnCrash(endX,endY); if(resultType==='win') spawnWin(endX,endY); }
+            requestAnimationFrame(frame);
+        } else if(phase==='impact'){
+            it++;
+            if(resultType==='win'){
+                // 粒子爆發
+                particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life-=0.035;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();});
+                particles=particles.filter(p=>p.life>0);
+                // 光環
+                const rings=[1,0.65,0.4];
+                rings.forEach((factor,ri)=>{
+                    const r=(40+it*4)*factor, a=Math.max(0,(1-it/30))*factor;
+                    if(a>0){ ctx.save(); ctx.strokeStyle=`rgba(46,204,113,${a})`; ctx.lineWidth=3-ri; ctx.beginPath(); ctx.arc(endX,endY,r,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+                });
+                const sc=1-it/28, a=1-it/22; if(a>0){ drawCard(endX,endY,0,a,sc<0.5?0.5:sc); }
+            }
+            else if(resultType==='crash'){
+                particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.35;p.life-=0.04;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();});
+                particles=particles.filter(p=>p.life>0);
+                drawCard(endX+(Math.random()-0.5)*(12-it*0.5),endY+(Math.random()-0.5)*4,Math.random()*0.35,Math.max(0,1-it/22));
+            }
+            else{
+                const a=Math.max(0,1-it/15),fly=it*9,dir=endX<canvas.width/2?-1:1;
+                drawCard(endX+dir*fly,endY-fly*0.25,rotation+it*0.22,a);
+            }
+            if(it>=30||(resultType==='lose'&&it>=18)){ ctx.clearRect(0,0,canvas.width,canvas.height); if(onDone) onDone(); return; }
+            requestAnimationFrame(frame);
+        }
+    }
+    requestAnimationFrame(frame);
+}
+
+/* ════ 其他工具 ════ */
+function showResultBanner(emoji,text,amount,type){
+    const b=document.getElementById('result-banner');
+    document.getElementById('rb-emoji').innerText=emoji;
+    document.getElementById('rb-text').innerText=text;
+    const ae=document.getElementById('rb-amount');
+    ae.innerText=(amount>=0?'+':'')+'$'+amount;
+    ae.className='rb-amount '+(amount>=0?'positive':'negative');
+    // 根據結果設定顏色主題
+    b.className=''; // 清除舊 class
+    b.classList.add(type==='win'?'type-win':type==='crash'?'type-crash':'type-lose');
+    b.classList.remove('show'); b.style.display='block';
+    requestAnimationFrame(()=>requestAnimationFrame(()=>b.classList.add('show')));
+    setTimeout(()=>{ b.classList.remove('show'); setTimeout(()=>b.style.display='none',400); },2800);
+}
+function spawnConfetti(count){
+    const cols=['#f1c40f','#2ecc71','#3498db','#e74c3c','#9b59b6','#fff'];
+    for(let i=0;i<count;i++){
+        const el=document.createElement('div'); el.className='confetti-piece';
+        el.style.left=Math.random()*100+'vw'; el.style.background=cols[Math.floor(Math.random()*cols.length)];
+        el.style.animationDuration=(1.5+Math.random()*1.5)+'s'; el.style.animationDelay=(Math.random()*0.5)+'s';
+        document.body.appendChild(el); setTimeout(()=>el.remove(),3500);
+    }
+}
+function addBet(v){ let cur=parseInt(document.getElementById('bet-amount').value)||0; document.getElementById('bet-amount').value=Math.min(cur+v,localData.pool); }
+function setAllIn(){
+    unlockAudio();
+    // iOS: 在按鈕手勢時預先讓 video load+解鎖
+    const vid = document.getElementById('allin-video');
+    if(vid && !_allinVideoReady){ vid.load(); }
+    document.getElementById('allin-pool-preview').innerText='$'+(localData.pool||0);
+    document.getElementById('all-in-confirm-overlay').classList.add('show');
+}
+function cancelAllIn(){ document.getElementById('all-in-confirm-overlay').classList.remove('show'); }
+function confirmAllIn(){
+    unlockAudio();
+    playSfx('sfx-allin');
+    // iOS 關鍵：在手勢的同一 call stack 內立刻 play video
+    const vid = document.getElementById('allin-video');
+    if(vid){
+        vid.currentTime = 0;
+        vid.muted = false;
+        const vp = vid.play();
+        if(vp && vp.catch) vp.catch(()=>{ vid.muted=true; vid.play().catch(()=>{}); });
+        vid.style.display = 'block';
+        // 把 video 移到 video-box 容器內
+        document.getElementById('video-box').appendChild(vid);
+    }
+    document.getElementById('all-in-confirm-overlay').classList.remove('show');
+    gameRef.update({allInTrigger:getServerNow().toString()});
+    document.getElementById('bet-amount').value=localData.pool;
+}
+/* ════ 真實洗牌（Fisher-Yates）+ 切牌 ════ */
+function generateDecks(count){
+    let deck=[];
+    const suits=['♠','♥','♦','♣'];
+    // 先依序疊牌（模擬真實牌組疊在一起）
+    for(let i=0;i<count;i++)
+        suits.forEach(s=>{ for(let v=1;v<=13;v++) deck.push({val:v,suit:s,label:labels[v]||v}); });
+    // Fisher-Yates 洗牌
+    for(let i=deck.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [deck[i],deck[j]]=[deck[j],deck[i]];
+    }
+    // 模擬切牌：隨機從中間切一刀
+    const cut=Math.floor(deck.length*0.35)+Math.floor(Math.random()*deck.length*0.3);
+    deck=[...deck.slice(cut),...deck.slice(0,cut)];
+    return deck;
+}
+
+/* ════ 洗牌動畫（純視覺，不影響遊戲邏輯）════ */
+function playShuffleAnimation(onComplete){
+    const overlay=document.getElementById('shuffle-overlay');
+    const stage=document.getElementById('shuffle-stage');
+    const bar=document.getElementById('shuffle-progress-bar');
+    overlay.classList.add('show');
+    stage.innerHTML='';
+    bar.style.width='0%';
+
+    // 建立 8 張虛擬牌
+    const CARDS=8;
+    const cards=[];
+    for(let i=0;i<CARDS;i++){
+        const el=document.createElement('div');
+        el.className='shuf-card';
+        el.innerText='🂠';
+        el.style.left='83px'; el.style.top='32px'; el.style.zIndex=i;
+        stage.appendChild(el);
+        cards.push(el);
+    }
+
+    let step=0;
+    const STEPS=6; // 洗牌回合數
+
+    function doShuffle(){
+        if(step>=STEPS){
+            // 發牌收尾動畫：牌飛回中央
+            cards.forEach((c,i)=>{
+                setTimeout(()=>{
+                    c.style.left='83px'; c.style.top='32px';
+                    c.style.transform='rotate(0deg) scale(1)';
+                },i*40);
+            });
+            setTimeout(()=>{
+                overlay.classList.remove('show');
+                if(onComplete) onComplete();
+            },CARDS*40+300);
+            return;
+        }
+
+        // 每次把牌分成兩堆，交錯合併
+        const half=Math.ceil(CARDS/2);
+        cards.forEach((c,i)=>{
+            const isLeft=i<half;
+            const posInGroup=isLeft?i:i-half;
+            setTimeout(()=>{
+                if(isLeft){
+                    c.style.left=(20+posInGroup*6)+'px';
+                    c.style.top=(20+posInGroup*3)+'px';
+                    c.style.transform=`rotate(${-8-posInGroup*2}deg)`;
+                } else {
+                    c.style.left=(130+posInGroup*6)+'px';
+                    c.style.top=(20+posInGroup*3)+'px';
+                    c.style.transform=`rotate(${8+posInGroup*2}deg)`;
+                }
+            }, i*25);
+        });
+
+        setTimeout(()=>{
+            // 重新交錯合併
+            const order=[...Array(CARDS).keys()].sort(()=>Math.random()-0.5);
+            order.forEach((origIdx,newPos)=>{
+                const c=cards[origIdx];
+                setTimeout(()=>{
+                    c.style.left=(75+newPos*3)+'px';
+                    c.style.top=(28+newPos*2)+'px';
+                    c.style.transform=`rotate(${(Math.random()-0.5)*4}deg)`;
+                    c.style.zIndex=newPos;
+                },newPos*30);
+            });
+            step++;
+            bar.style.width=(step/STEPS*100)+'%';
+            setTimeout(doShuffle, order.length*30+250);
+        }, CARDS*25+200);
+    }
+
+    doShuffle();
+}
+
+/* ════ 帶動畫的抽柱牌 ════ */
+function drawGoalPost(){
+    playSfx('sfx-deal');
+    let deck=localData.deck||[];
+    if(deck.length<3) {
+        // 牌不夠，需要重新洗牌，播放洗牌動畫
+        playShuffleAnimation(()=>{
+            deck=generateDecks(localData.deckCount||2);
+            const c1=deck.pop(), c2=deck.pop();
+            gameRef.update({deck,c1,c2,c3:null,gameState:'waiting_shoot',
+                lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'請下注後抽門牌'});
+        });
+    } else {
+        const c1=deck.pop(), c2=deck.pop();
+        gameRef.update({deck,c1,c2,c3:null,gameState:'waiting_shoot',
+            lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'請下注後抽門牌'});
+    }
+}
+function hostResetToLobby(){ if(confirm('重製大廳狀態?')) gameRef.update({gameStarted:false}); }
+</script>
+</body>
+</html>
