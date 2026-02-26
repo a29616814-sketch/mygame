@@ -408,6 +408,34 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 /* Canvas */
 #shot-canvas{ position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:7000; }
 
+/* ════ 洗牌動畫 Overlay ════ */
+#shuffle-overlay{
+    display:none; position:fixed; inset:0; z-index:8800;
+    background:rgba(0,0,0,0.82); flex-direction:column;
+    align-items:center; justify-content:center; gap:16px;
+    backdrop-filter:blur(4px);
+}
+#shuffle-overlay.show{ display:flex; }
+#shuffle-stage{ position:relative; width:220px; height:140px; }
+.shuf-card{
+    position:absolute; width:54px; height:76px;
+    border-radius:7px; border:1.5px solid #3a6a9f;
+    background:linear-gradient(135deg,#2a4f80,#1e3a64);
+    box-shadow:2px 2px 8px rgba(0,0,0,0.7);
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.4rem; color:rgba(255,255,255,0.18);
+    transition:transform 0.18s cubic-bezier(0.34,1.56,0.64,1), left 0.22s ease, top 0.22s ease;
+    will-change:transform,left,top;
+}
+#shuffle-label{
+    color:var(--gold); font-size:1rem; font-weight:bold;
+    letter-spacing:2px; text-shadow:0 0 12px rgba(212,175,55,0.6);
+    animation:shufflePulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes shufflePulse{ from{opacity:0.7;} to{opacity:1;} }
+#shuffle-progress{ width:160px; height:4px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; }
+#shuffle-progress-bar{ height:100%; width:0%; border-radius:4px; background:linear-gradient(90deg,var(--gold),#2ecc71); transition:width 0.3s ease; }
+
 /* ════ 其他 ════ */
 
 .confetti-piece{ position:fixed; width:10px; height:14px; top:-20px; border-radius:2px; pointer-events:none; animation:confettiFall linear forwards; z-index:7999; }
@@ -481,6 +509,17 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
     </div>
 </div>
 <div id="all-in-overlay"><div id="video-box"></div><h1>我要全部!!!</h1></div>
+<!-- ══ 洗牌動畫 ══ -->
+<div id="shuffle-overlay">
+    <div id="shuffle-stage"></div>
+    <div id="shuffle-label">🃏 洗牌中...</div>
+    <div id="shuffle-progress"><div id="shuffle-progress-bar"></div></div>
+</div>
+<div id="shuffle-overlay">
+    <div id="shuffle-stage"></div>
+    <div id="shuffle-label">🃏 洗牌中...</div>
+    <div id="shuffle-progress"><div id="shuffle-progress-bar"></div></div>
+</div>
 <div id="refill-toast"></div>
 <div id="my-turn-toast">🎯 輪到你了!</div>
 
@@ -492,6 +531,11 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 <audio id="sfx-deal"  src="sfx/deal.mp3"  preload="auto"></audio>
 <!-- 背景音樂：請將 bgm.mp3 放到 sfx/ 目錄下 -->
 <audio id="bgm" src="sfx/bgm.mp3" preload="auto" loop></audio>
+<!-- iOS 需要 video 元素在手勢時已存在，不能動態 innerHTML 建立 -->
+<video id="allin-video" src="video/allin.mp4" playsinline webkit-playsinline preload="auto"
+    style="display:none;max-width:90vw;max-height:60vh;border-radius:12px;position:relative;z-index:1;
+    box-shadow:0 0 40px rgba(255,100,0,0.6),0 0 80px rgba(255,0,0,0.3);">
+</video>
 
 <!-- ══ 登入畫面 ══ -->
 <div id="login-screen">
@@ -703,36 +747,94 @@ const RECONNECT_WINDOW=60*1000, KICK_GRACE=10*1000;
 db.ref('.info/serverTimeOffset').on('value', s => serverOffset=s.val());
 function getServerNow(){ return Date.now()+serverOffset; }
 
-/* ════ 音效 & BGM ════ */
-// AudioContext unlock for iOS/Android — must be called inside a user gesture
-let _audioUnlocked = false;
+/* ════ 音效 & BGM (iOS/Android 完整相容) ════ */
+// iOS Safari: 音量無法透過 HTMLMediaElement.volume 控制，改用 WebAudio GainNode
+// iOS Safari: video/audio 必須在同步的用戶手勢 call stack 內呼叫 play()
+
+let _audioCtx = null;
+let _bgmSource = null;
+let _bgmGain = null;
+let _bgmBuffer = null;
 let _bgmPlaying = false;
 let _bgmVol = 0.35;
+let _audioUnlocked = false;
+// 用 HTML audio 做 SFX（較簡單，unlock 後即可）
+// BGM 改用 WebAudio API 以支援 iOS 音量控制
+
+function getAudioCtx(){
+    if(!_audioCtx){
+        try{ _audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+    }
+    return _audioCtx;
+}
 
 function unlockAudio(){
     if(_audioUnlocked) return;
     _audioUnlocked = true;
-    try{
-        const ac = new (window.AudioContext||window.webkitAudioContext)();
-        const buf = ac.createBuffer(1,1,22050);
-        const src = ac.createBufferSource();
-        src.buffer = buf; src.connect(ac.destination); src.start(0);
-        ac.resume().catch(()=>{});
-    }catch(e){}
-    // Pre-play all audio elements silently to unlock them
+
+    // 1) 建立 AudioContext（iOS 需要在手勢內）
+    const ctx = getAudioCtx();
+    if(ctx && ctx.state === 'suspended'){
+        ctx.resume().catch(()=>{});
+    }
+    // 2) 用靜音 buffer 解鎖 AudioContext
+    if(ctx){
+        try{
+            const buf = ctx.createBuffer(1,1,22050);
+            const src = ctx.createBufferSource();
+            src.buffer=buf; src.connect(ctx.destination); src.start(0);
+        }catch(e){}
+    }
+    // 3) 解鎖所有 HTML audio SFX（iOS 需要在手勢內觸發過一次）
     document.querySelectorAll('audio').forEach(el=>{
-        if(el.id==='bgm') return; // BGM 另外處理
-        el.volume=0; el.play().catch(()=>{}).finally(()=>{ el.pause(); el.currentTime=0; el.volume=1; });
+        if(el.id==='bgm') return;
+        const savedVol = el.volume;
+        el.volume = 0;
+        el.play().catch(()=>{}).finally(()=>{
+            el.pause(); el.currentTime=0; el.volume=savedVol||1;
+        });
     });
-    // 嘗試啟動 BGM
-    startBgm();
+    // 4) iOS: 讓 allin-video 也在手勢內 load/解鎖
+    const vid = document.getElementById('allin-video');
+    if(vid){
+        vid.load();
+        // 靜音播一下再暫停，讓 iOS 知道這個 video 是被允許的
+        vid.muted = true;
+        vid.play().catch(()=>{}).finally(()=>{ vid.pause(); vid.currentTime=0; });
+    }
+    // 5) 嘗試啟動 BGM（WebAudio fetch）
+    startBgmWebAudio();
 }
 
-function startBgm(){
+function startBgmWebAudio(){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    // 先試用 HTML Audio element（fallback）
+    startBgmHtmlFallback();
+}
+
+function startBgmHtmlFallback(){
+    // BGM 仍用 HTML audio，但音量靠 GainNode（透過 createMediaElementSource）
     const bgm = document.getElementById('bgm');
     if(!bgm) return;
-    bgm.volume = _bgmVol;
+    const ctx = getAudioCtx();
+    if(!ctx){ bgm.volume=_bgmVol; bgm.play().then(()=>{ _bgmPlaying=true; updateBgmBtn(); }).catch(()=>{}); return; }
+    // 只連接一次
+    if(!bgm._gainConnected){
+        bgm._gainConnected = true;
+        try{
+            _bgmGain = ctx.createGain();
+            _bgmGain.gain.value = _bgmVol;
+            const src = ctx.createMediaElementSource(bgm);
+            src.connect(_bgmGain);
+            _bgmGain.connect(ctx.destination);
+        }catch(e){
+            // createMediaElementSource 只能呼叫一次，若失敗就 fallback
+            bgm._gainConnected = false;
+        }
+    }
     bgm.loop = true;
+    bgm.volume = 1; // 音量全交給 GainNode，iOS 不支援此設定但不影響
     const p = bgm.play();
     if(p && p.then){
         p.then(()=>{ _bgmPlaying=true; updateBgmBtn(); })
@@ -745,51 +847,75 @@ function toggleBgm(){
     const bgm = document.getElementById('bgm');
     if(!bgm) return;
     if(_bgmPlaying){
-        bgm.pause();
-        _bgmPlaying = false;
+        bgm.pause(); _bgmPlaying=false;
     } else {
-        bgm.volume = _bgmVol;
-        bgm.play().then(()=>{ _bgmPlaying=true; }).catch(()=>{});
-        _bgmPlaying = true;
+        bgm.loop=true; bgm.volume=1;
+        bgm.play().then(()=>{ _bgmPlaying=true; }).catch(()=>{ _bgmPlaying=false; });
+        _bgmPlaying=true;
     }
     updateBgmBtn();
 }
 
 function setBgmVol(v){
     _bgmVol = parseFloat(v);
-    const bgm = document.getElementById('bgm');
-    if(bgm) bgm.volume = _bgmVol;
-    if(_bgmVol > 0 && !_bgmPlaying && _audioUnlocked){ startBgm(); }
+    // iOS: 用 GainNode 控制音量
+    if(_bgmGain){
+        _bgmGain.gain.setTargetAtTime(_bgmVol, getAudioCtx().currentTime, 0.05);
+    } else {
+        const bgm = document.getElementById('bgm');
+        if(bgm) try{ bgm.volume=_bgmVol; }catch(e){}
+    }
+    if(_bgmVol > 0 && !_bgmPlaying && _audioUnlocked){ startBgmHtmlFallback(); }
 }
 
 function updateBgmBtn(){
     const btn = document.getElementById('bgm-toggle-btn');
     if(!btn) return;
-    if(_bgmPlaying){
-        btn.innerText = '🎵';
-        btn.classList.add('playing');
-        btn.title = '關閉背景音樂';
+    btn.innerText = _bgmPlaying ? '🎵' : '🔇';
+    btn.classList.toggle('playing', _bgmPlaying);
+    btn.title = _bgmPlaying ? '關閉背景音樂' : '開啟背景音樂';
+}
+
+// ALL IN 時透過 GainNode 壓低 BGM
+function bgmDuck(on){
+    const target = on ? _bgmVol * 0.12 : _bgmVol;
+    if(_bgmGain && _audioCtx){
+        _bgmGain.gain.setTargetAtTime(target, _audioCtx.currentTime, 0.08);
     } else {
-        btn.innerText = '🔇';
-        btn.classList.remove('playing');
-        btn.title = '開啟背景音樂';
+        const bgm = document.getElementById('bgm');
+        if(bgm && _bgmPlaying) try{ bgm.volume = target; }catch(e){}
     }
 }
 
-// ALL IN 時壓低 BGM
-function bgmDuck(on){
-    const bgm = document.getElementById('bgm');
-    if(!bgm || !_bgmPlaying) return;
-    bgm.volume = on ? Math.max(0, _bgmVol * 0.15) : _bgmVol;
+function playSfx(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.currentTime = 0;
+    try{ el.volume = 1; }catch(e){}
+    const p = el.play();
+    if(p && p.catch) p.catch(()=>{});
 }
 
-function playSfx(id){
-    const el=document.getElementById(id);
-    if(!el) return;
-    el.currentTime=0;
-    el.volume=1;
-    const p=el.play();
-    if(p && p.catch) p.catch(()=>{});
+// ══ iOS All-In 影片：在 confirmAllIn 手勢當下就 play()，顯示 overlay ══
+let _allinVideoReady = false;
+function prepareAllinVideo(){
+    // 在用戶手勢內預先 play()→pause()，讓 iOS 允許後續自動播放
+    const vid = document.getElementById('allin-video');
+    if(!vid || _allinVideoReady) return;
+    vid.muted = false; // 嘗試有聲
+    vid.currentTime = 0;
+    const p = vid.play();
+    if(p && p.then){
+        p.then(()=>{
+            _allinVideoReady = true;
+            // 立即暫停，等 Firebase 觸發時再 seek(0)+play
+            vid.pause(); vid.currentTime = 0;
+        }).catch(()=>{
+            // 無聲版 fallback
+            vid.muted = true;
+            vid.play().then(()=>{ _allinVideoReady=true; vid.pause(); vid.currentTime=0; }).catch(()=>{});
+        });
+    }
 }
 
 /* ════ 畫面切換 ════ */
@@ -1139,23 +1265,29 @@ function startListening(){
 
         // ALL IN 影片
         if(localData.allInTrigger&&localData.allInTrigger!==lastEffectId){
-            const v=document.getElementById('video-box');
-            // 用 muted+playsinline 確保自動播放，音效已在 confirmAllIn 觸發
-            v.innerHTML=`<video width="315" height="560" autoplay muted playsinline webkit-playsinline style="max-width:90vw;max-height:60vh;border-radius:12px;"><source src="video/allin.mp4" type="video/mp4"></video>`;
+            lastEffectId=localData.allInTrigger;
+            const vid = document.getElementById('allin-video');
+            const vbox = document.getElementById('video-box');
+            // 確保 video 在容器裡且可見
+            if(vid && !vbox.contains(vid)){
+                vbox.appendChild(vid);
+            }
+            if(vid){ vid.style.display='block'; }
             document.getElementById('all-in-overlay').style.display='flex';
-            bgmDuck(true); // 壓低背景音樂
-            // 嘗試讓影片有聲音（適用於已解鎖音頻的裝置）
-            const vid=v.querySelector('video');
-            if(vid){
-                vid.muted=false;
-                const vp=vid.play();
-                if(vp&&vp.catch) vp.catch(()=>{ vid.muted=true; vid.play().catch(()=>{}); });
+            bgmDuck(true);
+            // 若是自己觸發（confirmAllIn 已播），只需顯示即可
+            // 若是其他人觸發（其他玩家 all in），則靜音播放
+            if(vid && vid.paused){
+                vid.currentTime=0; vid.muted=true;
+                vid.play().catch(()=>{});
             }
             setTimeout(()=>{
                 document.getElementById('all-in-overlay').style.display='none';
-                bgmDuck(false); // 恢復背景音樂
+                bgmDuck(false);
+                if(vid){ vid.pause(); vid.currentTime=0; vid.style.display='none'; }
+                // 把 video 移回 body 備用
+                document.body.appendChild(vid);
             },2500);
-            lastEffectId=localData.allInTrigger;
         }
 
         if(localData.gameStarted){
@@ -1253,14 +1385,23 @@ function hostStartGame(){
     const refill=document.getElementById('auto-refill').checked;
     let players=localData.players, pool=0;
     Object.keys(players).forEach(id=>{ players[id].balance=start-fee; pool+=fee; });
+
+    // 先切換到遊戲畫面讓動畫顯示
+    const deckData=generateDecks(decks);
     gameRef.update({
-        gameStarted:true, deck:generateDecks(decks), pool, entryFee:fee,
+        gameStarted:true, deck:deckData, pool, entryFee:fee,
         foldPenalty:parseInt(document.getElementById('fold-penalty').value)||20,
         autoRefill:refill, deckCount:decks, gameState:'waiting_deal',
         currentPlayerKey:Object.keys(players)[0], players,
-        lastActionTime:firebase.database.ServerValue.TIMESTAMP, statusMsg:'新局開始'
+        lastActionTime:firebase.database.ServerValue.TIMESTAMP, statusMsg:'新局開始，請洗牌'
     });
-    chatRef.push({uid:'system',text:'遊戲開始!',time:firebase.database.ServerValue.TIMESTAMP});
+    chatRef.push({uid:'system',text:'遊戲開始！',time:firebase.database.ServerValue.TIMESTAMP});
+    // 切換後播洗牌動畫（畫面已是 game，overlay 可顯示）
+    setTimeout(()=>{
+        playShuffleAnimation(()=>{
+            gameRef.update({statusMsg:'請點牌庫發牌'});
+        });
+    },400);
 }
 
 function drawGoalPost(){
@@ -1542,16 +1683,148 @@ function spawnConfetti(count){
     }
 }
 function addBet(v){ let cur=parseInt(document.getElementById('bet-amount').value)||0; document.getElementById('bet-amount').value=Math.min(cur+v,localData.pool); }
-function setAllIn(){ unlockAudio(); document.getElementById('allin-pool-preview').innerText='$'+(localData.pool||0); document.getElementById('all-in-confirm-overlay').classList.add('show'); }
+function setAllIn(){
+    unlockAudio();
+    // iOS: 在按鈕手勢時預先讓 video load+解鎖
+    const vid = document.getElementById('allin-video');
+    if(vid && !_allinVideoReady){ vid.load(); }
+    document.getElementById('allin-pool-preview').innerText='$'+(localData.pool||0);
+    document.getElementById('all-in-confirm-overlay').classList.add('show');
+}
 function cancelAllIn(){ document.getElementById('all-in-confirm-overlay').classList.remove('show'); }
 function confirmAllIn(){
     unlockAudio();
     playSfx('sfx-allin');
+    // iOS 關鍵：在手勢的同一 call stack 內立刻 play video
+    const vid = document.getElementById('allin-video');
+    if(vid){
+        vid.currentTime = 0;
+        vid.muted = false;
+        const vp = vid.play();
+        if(vp && vp.catch) vp.catch(()=>{ vid.muted=true; vid.play().catch(()=>{}); });
+        vid.style.display = 'block';
+        // 把 video 移到 video-box 容器內
+        document.getElementById('video-box').appendChild(vid);
+    }
     document.getElementById('all-in-confirm-overlay').classList.remove('show');
     gameRef.update({allInTrigger:getServerNow().toString()});
     document.getElementById('bet-amount').value=localData.pool;
 }
-function generateDecks(count){ let deck=[]; const suits=['♠','♥','♦','♣']; for(let i=0;i<count;i++) suits.forEach(s=>{ for(let v=1;v<=13;v++) deck.push({val:v,suit:s,label:labels[v]||v}); }); return deck.sort(()=>Math.random()-0.5); }
+/* ════ 真實洗牌（Fisher-Yates）+ 切牌 ════ */
+function generateDecks(count){
+    let deck=[];
+    const suits=['♠','♥','♦','♣'];
+    // 先依序疊牌（模擬真實牌組疊在一起）
+    for(let i=0;i<count;i++)
+        suits.forEach(s=>{ for(let v=1;v<=13;v++) deck.push({val:v,suit:s,label:labels[v]||v}); });
+    // Fisher-Yates 洗牌
+    for(let i=deck.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [deck[i],deck[j]]=[deck[j],deck[i]];
+    }
+    // 模擬切牌：隨機從中間切一刀
+    const cut=Math.floor(deck.length*0.35)+Math.floor(Math.random()*deck.length*0.3);
+    deck=[...deck.slice(cut),...deck.slice(0,cut)];
+    return deck;
+}
+
+/* ════ 洗牌動畫（純視覺，不影響遊戲邏輯）════ */
+function playShuffleAnimation(onComplete){
+    const overlay=document.getElementById('shuffle-overlay');
+    const stage=document.getElementById('shuffle-stage');
+    const bar=document.getElementById('shuffle-progress-bar');
+    overlay.classList.add('show');
+    stage.innerHTML='';
+    bar.style.width='0%';
+
+    // 建立 8 張虛擬牌
+    const CARDS=8;
+    const cards=[];
+    for(let i=0;i<CARDS;i++){
+        const el=document.createElement('div');
+        el.className='shuf-card';
+        el.innerText='🂠';
+        el.style.left='83px'; el.style.top='32px'; el.style.zIndex=i;
+        stage.appendChild(el);
+        cards.push(el);
+    }
+
+    let step=0;
+    const STEPS=6; // 洗牌回合數
+
+    function doShuffle(){
+        if(step>=STEPS){
+            // 發牌收尾動畫：牌飛回中央
+            cards.forEach((c,i)=>{
+                setTimeout(()=>{
+                    c.style.left='83px'; c.style.top='32px';
+                    c.style.transform='rotate(0deg) scale(1)';
+                },i*40);
+            });
+            setTimeout(()=>{
+                overlay.classList.remove('show');
+                if(onComplete) onComplete();
+            },CARDS*40+300);
+            return;
+        }
+
+        // 每次把牌分成兩堆，交錯合併
+        const half=Math.ceil(CARDS/2);
+        cards.forEach((c,i)=>{
+            const isLeft=i<half;
+            const posInGroup=isLeft?i:i-half;
+            setTimeout(()=>{
+                if(isLeft){
+                    c.style.left=(20+posInGroup*6)+'px';
+                    c.style.top=(20+posInGroup*3)+'px';
+                    c.style.transform=`rotate(${-8-posInGroup*2}deg)`;
+                } else {
+                    c.style.left=(130+posInGroup*6)+'px';
+                    c.style.top=(20+posInGroup*3)+'px';
+                    c.style.transform=`rotate(${8+posInGroup*2}deg)`;
+                }
+            }, i*25);
+        });
+
+        setTimeout(()=>{
+            // 重新交錯合併
+            const order=[...Array(CARDS).keys()].sort(()=>Math.random()-0.5);
+            order.forEach((origIdx,newPos)=>{
+                const c=cards[origIdx];
+                setTimeout(()=>{
+                    c.style.left=(75+newPos*3)+'px';
+                    c.style.top=(28+newPos*2)+'px';
+                    c.style.transform=`rotate(${(Math.random()-0.5)*4}deg)`;
+                    c.style.zIndex=newPos;
+                },newPos*30);
+            });
+            step++;
+            bar.style.width=(step/STEPS*100)+'%';
+            setTimeout(doShuffle, order.length*30+250);
+        }, CARDS*25+200);
+    }
+
+    doShuffle();
+}
+
+/* ════ 帶動畫的抽柱牌 ════ */
+function drawGoalPost(){
+    playSfx('sfx-deal');
+    let deck=localData.deck||[];
+    if(deck.length<3) {
+        // 牌不夠，需要重新洗牌，播放洗牌動畫
+        playShuffleAnimation(()=>{
+            deck=generateDecks(localData.deckCount||2);
+            const c1=deck.pop(), c2=deck.pop();
+            gameRef.update({deck,c1,c2,c3:null,gameState:'waiting_shoot',
+                lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'請下注後抽門牌'});
+        });
+    } else {
+        const c1=deck.pop(), c2=deck.pop();
+        gameRef.update({deck,c1,c2,c3:null,gameState:'waiting_shoot',
+            lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'請下注後抽門牌'});
+    }
+}
 function hostResetToLobby(){ if(confirm('重製大廳狀態?')) gameRef.update({gameStarted:false}); }
 </script>
 </body>
