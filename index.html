@@ -27,9 +27,21 @@
         .pool-display { font-size: 40px; color: #f1c40f; font-weight: bold; margin: 5px 0; }
         .cards { display: flex; justify-content: center; gap: 10px; margin: 15px 0; height: 140px; }
 
-        /* ── 優化 4：牌標籤說明 ── */
+        /* ── 牌區排版：左柱 | 龍門 | 右柱 ── */
         .card-wrapper { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        .card-label { font-size: 0.75rem; color: #aaa; letter-spacing: 1px; text-transform: uppercase; height: 16px; }
+        .card-label { font-size: 0.75rem; color: #aaa; letter-spacing: 1px; height: 16px; }
+        .card-label.gate-label { color: var(--gold); font-weight: bold; font-size: 0.85rem; }
+
+        /* 龍門中間區塊 */
+        .gate-wrapper { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
+        .gate-frame {
+            width: clamp(70px, 15vw, 90px); height: 130px;
+            border: 2px dashed rgba(212,175,55,0.5); border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(212,175,55,0.05); position: relative;
+            overflow: visible;
+        }
+        .gate-frame .gate-inner-text { color: rgba(212,175,55,0.35); font-size: 0.7rem; letter-spacing: 1px; }
 
         .card { width: clamp(70px, 15vw, 90px); height: 130px; background: white; border-radius: 10px; color: black; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; border: 2px solid #333; box-shadow: 3px 3px 8px rgba(0,0,0,0.3); white-space: pre-wrap; transition: transform 0.2s; }
         .card.hidden { background: #2c3e50; color: transparent; border: 1px solid #7f8c8d; }
@@ -59,7 +71,23 @@
         .card.anim-lose { animation: losePulse 0.7s ease-out; }
         .card.anim-crash{ animation: crashPulse 0.7s ease-out; }
 
-        /* 結果橫幅 */
+        /* ── 射門飛牌動畫 CSS ── */
+        #shot-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 7000;
+        }
+
+        /* 門柱連接線視覺 */
+        .cards-row {
+            display: flex; justify-content: center; align-items: center;
+            gap: 0; margin: 15px 0; height: 160px; position: relative;
+        }
+        .post-connector {
+            width: 30px; height: 4px;
+            background: linear-gradient(90deg, rgba(212,175,55,0.6), rgba(212,175,55,0.2));
+            align-self: center; flex-shrink: 0;
+        }
+        .post-connector.right { background: linear-gradient(90deg, rgba(212,175,55,0.2), rgba(212,175,55,0.6)); }
         #result-banner { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5); z-index: 8000; background: rgba(0,0,0,0.92); border-radius: 20px; padding: 20px 40px; border: 3px solid var(--gold); text-align: center; transition: transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.35s; opacity: 0; pointer-events: none; }
         #result-banner.show { display: block; transform: translate(-50%, -50%) scale(1); opacity: 1; }
         #result-banner .rb-emoji { font-size: 3rem; }
@@ -128,6 +156,8 @@
     </style>
 </head>
 <body>
+
+<canvas id="shot-canvas"></canvas>
 
 <div id="emoji-broadcast-area"></div>
 
@@ -210,19 +240,29 @@
         <div class="pool-display">💰 $<span id="pool-val">0</span></div>
         <div id="status-msg">等待發牌...</div>
         
-        <!-- ── 優化 4：加牌標籤 ── -->
-        <div class="cards">
+        <!-- 左柱 | 龍門 | 右柱 -->
+        <div class="cards-row">
             <div class="card-wrapper">
                 <div class="card-label">左柱</div>
                 <div id="c1" class="card hidden">?</div>
             </div>
+
+            <div class="post-connector"></div>
+
+            <div class="gate-wrapper">
+                <div class="card-label gate-label">🐉 龍門</div>
+                <div class="gate-frame" id="gate-frame">
+                    <span class="gate-inner-text" id="gate-inner">待射門</span>
+                    <!-- 飛牌從這裡飛入 -->
+                    <div id="c3-in-gate" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:10;"></div>
+                </div>
+            </div>
+
+            <div class="post-connector right"></div>
+
             <div class="card-wrapper">
                 <div class="card-label">右柱</div>
                 <div id="c2" class="card hidden">?</div>
-            </div>
-            <div class="card-wrapper">
-                <div class="card-label">射門</div>
-                <div id="c3" class="card hidden">?</div>
             </div>
         </div>
 
@@ -295,7 +335,191 @@
         el.play().catch(() => {}); // 忽略瀏覽器自動播放限制錯誤
     }
 
-    // ── 優化 1：結果橫幅 ──
+    // ── 射門飛牌動畫（Canvas） ──
+    // 用途：從畫面外飛入，根據結果決定軌跡
+    // resultType: 'win'(穿過龍門) | 'crash'(撞柱) | 'lose'(飛出外側)
+    function animateShotCard(cardData, resultType, onDone) {
+        const canvas = document.getElementById('shot-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // 取得龍門 frame 的螢幕座標
+        const gateEl = document.getElementById('gate-frame');
+        const gateRect = gateEl.getBoundingClientRect();
+        const gateX = gateRect.left + gateRect.width / 2;
+        const gateY = gateRect.top + gateRect.height / 2;
+
+        // 取得左柱、右柱座標（撞柱用）
+        const c1Rect = document.getElementById('c1').getBoundingClientRect();
+        const c2Rect = document.getElementById('c2').getBoundingClientRect();
+        const leftPostX  = c1Rect.left + c1Rect.width / 2;
+        const rightPostX = c2Rect.left + c2Rect.width / 2;
+
+        // 牌的顯示文字
+        const isRed = cardData.suit === '♥' || cardData.suit === '♦';
+        const cardW = 70, cardH = 100;
+
+        // 起始位置：從畫面底部飛入
+        let startX = canvas.width / 2;
+        let startY = canvas.height + 80;
+
+        // 終點依結果決定
+        let endX, endY;
+        if (resultType === 'win') {
+            endX = gateX; endY = gateY;                  // 穿過龍門中央
+        } else if (resultType === 'crash') {
+            // 隨機撞左或右柱
+            const hitLeft = Math.random() > 0.5;
+            endX = hitLeft ? leftPostX : rightPostX;
+            endY = gateY;
+        } else {
+            // 飛出左側或右側外
+            endX = Math.random() > 0.5 ? -cardW : canvas.width + cardW;
+            endY = gateY - 40;
+        }
+
+        // 拋物線控制點（往上弧）
+        const cpX = (startX + endX) / 2 + (Math.random() - 0.5) * 80;
+        const cpY = Math.min(startY, endY) - 200;
+
+        let t = 0;
+        const duration = 50; // frames
+        let rotation = 0;
+
+        function drawCard(x, y, rot, alpha) {
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.translate(x, y);
+            ctx.rotate(rot);
+
+            // 牌背景
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            roundRect(ctx, -cardW/2, -cardH/2, cardW, cardH, 8);
+            ctx.fill(); ctx.stroke();
+
+            // 牌面文字
+            ctx.fillStyle = isRed ? '#e74c3c' : '#000';
+            ctx.font = `bold 22px 'Segoe UI'`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(cardData.suit, 0, -12);
+            ctx.fillText(cardData.label.toString(), 0, 16);
+
+            ctx.restore();
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        // 撞柱特效用粒子
+        let particles = [];
+
+        function spawnCrashParticles(x, y) {
+            for (let i = 0; i < 20; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 3 + Math.random() * 6;
+                particles.push({
+                    x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                    life: 1, color: Math.random() > 0.5 ? '#f39c12' : '#e74c3c'
+                });
+            }
+        }
+
+        let crashed = false;
+        let phase = 'fly'; // 'fly' | 'impact' | 'done'
+        let impactTimer = 0;
+
+        function frame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (phase === 'fly') {
+                t++;
+                const p = t / duration;
+                const eased = p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p; // ease in-out
+
+                // 貝茲曲線位置
+                const bx = (1-eased)*(1-eased)*startX + 2*(1-eased)*eased*cpX + eased*eased*endX;
+                const by = (1-eased)*(1-eased)*startY + 2*(1-eased)*eased*cpY + eased*eased*endY;
+                rotation += 0.15;
+
+                const alpha = Math.min(1, p * 3);
+                drawCard(bx, by, rotation, alpha);
+
+                if (t >= duration) {
+                    phase = 'impact';
+                    if (resultType === 'crash') spawnCrashParticles(endX, endY);
+                }
+                requestAnimationFrame(frame);
+
+            } else if (phase === 'impact') {
+                impactTimer++;
+
+                if (resultType === 'win') {
+                    // 穿過龍門 → 縮小淡出，顯示光環
+                    const scale = 1 - impactTimer / 25;
+                    const alpha = 1 - impactTimer / 20;
+                    if (alpha > 0) {
+                        // 光環
+                        ctx.save();
+                        ctx.strokeStyle = `rgba(46,204,113,${alpha})`;
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.arc(endX, endY, 50 + impactTimer * 3, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.restore();
+                        drawCard(endX, endY, 0, alpha * scale);
+                    }
+                } else if (resultType === 'crash') {
+                    // 撞柱 → 粒子四散
+                    particles.forEach(p => {
+                        p.x += p.vx; p.y += p.vy;
+                        p.vy += 0.3; // 重力
+                        p.life -= 0.04;
+                        ctx.save();
+                        ctx.globalAlpha = p.life;
+                        ctx.fillStyle = p.color;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    });
+                    particles = particles.filter(p => p.life > 0);
+                    // 震動效果
+                    const shakeX = (Math.random() - 0.5) * (10 - impactTimer * 0.5);
+                    drawCard(endX + shakeX, endY, Math.random() * 0.3, Math.max(0, 1 - impactTimer / 20));
+                } else {
+                    // 飛出 → 繼續飛並淡出
+                    const alpha = Math.max(0, 1 - impactTimer / 15);
+                    const fly = impactTimer * 8;
+                    const dir = endX < canvas.width / 2 ? -1 : 1;
+                    drawCard(endX + dir * fly, endY - fly * 0.3, rotation + impactTimer * 0.2, alpha);
+                }
+
+                if (impactTimer >= 25 || (resultType === 'lose' && impactTimer >= 18)) {
+                    phase = 'done';
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    if (onDone) onDone();
+                    return;
+                }
+                requestAnimationFrame(frame);
+            }
+        }
+        requestAnimationFrame(frame);
+    }
     function showResultBanner(emoji, text, amount, type) {
         const banner = document.getElementById('result-banner');
         document.getElementById('rb-emoji').innerText = emoji;
@@ -607,16 +831,20 @@
         const pKeys = Object.keys(localData.players);
         let nextK = pKeys[(pKeys.indexOf(myId) + 1) % pKeys.length];
 
-        // ── 優化 3：autoRefill 修正版 ──
+        // ── autoRefill 修正版 ──
+        // 條件1：有勾選 autoRefill 且池金不足
+        // 條件2：無論有無勾選，池金歸零都要強制補底（遊戲才能繼續）
         let updates = { 
             [`players/${myId}/balance`]: nBal, pool: nPool, deck: deck, c3: c3 || null, 
             statusMsg: msg, gameState: 'waiting_deal', currentPlayerKey: nextK, 
             lastActionTime: firebase.database.ServerValue.TIMESTAMP 
         };
 
+        const minPoolNeeded = localData.entryFee * pKeys.length;
+        const needRefill = (localData.autoRefill && nPool < minPoolNeeded) || (nPool <= 0);
         let refillTriggered = false;
-        if (localData.autoRefill && nPool < localData.entryFee * pKeys.length) {
-            // 使用獨立變數累計，不直接修改 nPool
+
+        if (needRefill) {
             let totalRefill = 0;
             pKeys.forEach(k => {
                 const currentBal = (k === myId) ? nBal : localData.players[k].balance;
@@ -627,31 +855,36 @@
             refillTriggered = true;
         }
 
-        // ── 優化 1：本機先播音效與動畫（不等 Firebase 回應，讓體驗更即時）──
-        if (resultType === 'win') {
-            playSfx('sfx-win');
-            animateCard('c3', 'anim-win');
-            spawnConfetti(40);
-            showResultBanner('🎉', type === 'up' ? '猜對！' : '射進！', deltaAmount, 'win');
-        } else if (resultType === 'crash') {
-            playSfx('sfx-crash');
-            animateCard('c3', 'anim-crash');
-            showResultBanner('💥', '撞柱！！', deltaAmount, 'crash');
-        } else if (resultType === 'lose') {
-            playSfx('sfx-lose');
-            animateCard('c3', 'anim-lose');
-            showResultBanner('😭', type === 'up' || type === 'down' ? '猜錯了' : '沒進...', deltaAmount, 'lose');
-        } else if (resultType === 'fold') {
-            playSfx('sfx-fold');
-            showResultBanner('🏳️', '棄牌', deltaAmount, 'fold');
-        }
-
-        if (refillTriggered) {
-            showRefillToast(localData.entryFee, pKeys.length);
-        }
-
+        // ── 飛牌動畫：先播動畫，動畫結束後顯示結果橫幅 ──
+        // Firebase 先送出（讓其他玩家看到結果），本機動畫並行播放
         gameRef.update(updates);
         document.getElementById('bet-amount').value = 0;
+
+        if (type !== 'fold' && c3) {
+            // 更新龍門 c3 牌槽的顯示（先隱藏 gate-inner 文字，等動畫結束再顯示）
+            document.getElementById('gate-inner').style.display = 'none';
+            animateShotCard(c3, resultType, () => {
+                // 動畫結束後：更新龍門顯示 + 播音效 + 結果橫幅
+                updateGateCard(c3);
+                if (resultType === 'win') {
+                    playSfx('sfx-win');
+                    spawnConfetti(40);
+                    showResultBanner('🎉', type === 'up' ? '猜對！' : '射進！', deltaAmount, 'win');
+                } else if (resultType === 'crash') {
+                    playSfx('sfx-crash');
+                    showResultBanner('💥', '撞柱！！', deltaAmount, 'crash');
+                } else {
+                    playSfx('sfx-lose');
+                    showResultBanner('😭', type === 'up' || type === 'down' ? '猜錯了' : '沒進...', deltaAmount, 'lose');
+                }
+                if (refillTriggered) showRefillToast(localData.entryFee, pKeys.length);
+            });
+        } else {
+            // 棄牌：沒有飛牌動畫
+            playSfx('sfx-fold');
+            showResultBanner('🏳️', '棄牌', deltaAmount, 'fold');
+            if (refillTriggered) showRefillToast(localData.entryFee, pKeys.length);
+        }
     }
 
     function renderUI(isHost) {
@@ -659,10 +892,14 @@
         document.getElementById('status-msg').innerText = localData.statusMsg || "";
         document.getElementById('cards-left').innerText = localData.deck ? localData.deck.length : 0;
         document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 20;
-        updateCard('c1', localData.c1); updateCard('c2', localData.c2); updateCard('c3', localData.c3);
-        const isTurn = (localData.currentPlayerKey === myId);
 
-        // 輪到自己時主板邊框發光
+        // 左柱、右柱正常顯示
+        updateCard('c1', localData.c1);
+        updateCard('c2', localData.c2);
+        // 龍門中間：顯示 c3（若有），或顯示待射門提示
+        updateGateCard(localData.c3);
+
+        const isTurn = (localData.currentPlayerKey === myId);
         const board = document.getElementById('main-board');
         if (isTurn) { board.classList.add('my-turn'); } else { board.classList.remove('my-turn'); }
 
@@ -671,6 +908,23 @@
         const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
         document.getElementById('shoot-normal').style.display = isSame ? 'none' : 'inline-block';
         document.getElementById('guess-buttons').style.display = isSame ? 'inline-block' : 'none';
+    }
+
+    // 更新龍門中間格的顯示
+    function updateGateCard(c) {
+        const gateInner = document.getElementById('gate-inner');
+        const c3InGate = document.getElementById('c3-in-gate');
+        if (!c) {
+            gateInner.style.display = '';
+            gateInner.innerText = '待射門';
+            c3InGate.style.display = 'none';
+            c3InGate.innerHTML = '';
+        } else {
+            gateInner.style.display = 'none';
+            const isRed = c.suit === '♥' || c.suit === '♦';
+            c3InGate.style.display = 'block';
+            c3InGate.innerHTML = `<div class="card ${isRed ? 'red' : ''}" style="width:clamp(70px,15vw,90px);height:130px;">${c.suit}\n${c.label}</div>`;
+        }
     }
 
     function addBet(v) {
@@ -692,6 +946,7 @@
         document.getElementById('bet-amount').value = localData.pool;
     }
 
+    // 更新左柱/右柱牌（c1, c2）
     function updateCard(id, c) {
         const el = document.getElementById(id);
         if (!c) { el.classList.add('hidden'); el.innerText = '?'; }
