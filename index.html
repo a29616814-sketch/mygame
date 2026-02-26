@@ -766,3 +766,424 @@ function renderSeats() {
         container.appendChild(seat);
     });
 }
+
+/* ════════════════════════════════════════════
+   (3) 牌堆點擊邏輯
+   gameState = 'waiting_deal'  → 點牌堆 = 抽左右柱
+   gameState = 'waiting_shoot' → 點牌堆 = 射門（抽龍門牌）
+════════════════════════════════════════════ */
+function onDeckClick() {
+    if (!localData.gameStarted) return;
+    const isTurn = (localData.currentPlayerKey === myId);
+    if (!isTurn) return;
+
+    if (localData.gameState === 'waiting_deal') {
+        drawGoalPost();
+    } else if (localData.gameState === 'waiting_shoot') {
+        // 先確認已下注
+        const bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
+        if (bet < 1 || bet > localData.pool) {
+            // 閃爍提示需先下注
+            const hint = document.getElementById('deck-hint');
+            hint.innerText = '⚠️ 請先下注！';
+            hint.classList.add('show');
+            setTimeout(() => { hint.innerText = '點擊抽牌'; hint.classList.remove('show'); }, 1500);
+            return;
+        }
+        // 決定類型
+        const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
+        if (isSame) {
+            // 對子：需要猜大/猜小，不直接抽，提示按鈕
+            const hint = document.getElementById('deck-hint');
+            hint.innerText = '⚠️ 請先猜大或猜小';
+            hint.classList.add('show');
+            setTimeout(() => { hint.innerText = '點擊抽牌'; hint.classList.remove('show'); }, 1500);
+        } else {
+            handleAction('shoot');
+        }
+    }
+}
+
+/* ════════════════════════════════════════════
+   核心計時器（每秒）
+════════════════════════════════════════════ */
+setInterval(() => {
+    if (myId && localData.players && localData.players[myId])
+        gameRef.child('players/'+myId).update({ lastActive: getServerNow() });
+}, 5000);
+
+setInterval(() => {
+    if (!localData.players) return;
+    const now = getServerNow();
+    const players = localData.players;
+    const pKeys = Object.keys(players);
+
+    if (pKeys[0] === myId) {
+        pKeys.forEach(id => {
+            if (id !== myId && (!players[id].lastActive || now - players[id].lastActive > 60000))
+                gameRef.child('players/'+id).remove();
+        });
+    }
+
+    if (pKeys.length === 0 && localData.gameStarted) {
+        gameRef.update({ gameStarted: false, c1:null, c2:null, c3:null }); return;
+    }
+    if (!localData.gameStarted) return;
+
+    const cpKey = localData.currentPlayerKey;
+    if (cpKey && !players[cpKey]) {
+        gameRef.update({ gameState:'waiting_deal', currentPlayerKey:pKeys[0], lastActionTime:firebase.database.ServerValue.TIMESTAMP }); return;
+    }
+
+    if (pKeys[0] === myId && localData.lastActionTime) {
+        const diff = (now - localData.lastActionTime) / 1000;
+        if (diff > 60.5) {
+            gameRef.child('players/'+cpKey).remove().then(() => {
+                const nk = Object.keys(localData.players).filter(k=>k!==cpKey);
+                gameRef.update({ gameState:'waiting_deal', currentPlayerKey:nk[0]||null, statusMsg:"玩家超時踢除", lastActionTime:firebase.database.ServerValue.TIMESTAMP });
+            });
+        }
+    }
+    renderSeats(); // 每秒更新計時器
+}, 1000);
+
+/* ════════════════════════════════════════════
+   JOIN / LISTEN
+════════════════════════════════════════════ */
+function joinRoom() {
+    const name = document.getElementById('my-name').value.trim();
+    if (!name) return alert("請輸入暱稱");
+
+    // 先產生 ID 並寫入，不在 once 裡面清理（避免 serverOffset 未就緒誤刪玩家）
+    const newRef = gameRef.child('players').push();
+    myId = newRef.key;
+    gameRef.child('players/'+myId).set({ name, balance:0, lastActive: Date.now() });
+
+    gameRef.once('value', snap => {
+        const data = snap.val() || {};
+        if (data.allInTrigger) lastEffectId = data.allInTrigger;
+        if (data.lastEmoji)    lastEmojiTime = data.lastEmoji.time;
+        if (data.lastShot)     lastShotId    = data.lastShot.id;
+
+        startListening();
+        // 隱藏登入，顯示等待提示；host-part 由 startListening 裡根據房主身分顯示
+        document.getElementById('login-part').style.display = 'none';
+        // 立即顯示一個等待提示，避免畫面空白
+        document.getElementById('login-part').insertAdjacentHTML('afterend',
+            '<p id="joining-msg" style="color:var(--gold);margin:12px 0;">⏳ 正在進入大廳...</p>');
+    });
+}
+
+function startListening() {
+    gameRef.on('value', snap => {
+        localData = snap.val() || {};
+        // 若自己的資料還沒同步回來，稍等重試（解決 write/read 短暫競態）
+        if (!localData.players || !localData.players[myId]) {
+            setTimeout(() => {
+                gameRef.once('value', s2 => {
+                    localData = s2.val() || {};
+                    if (localData.players && localData.players[myId]) {
+                        const pKeys2 = Object.keys(localData.players);
+                        const isHost2 = (pKeys2[0] === myId);
+                        document.body.className = isHost2 ? "is-host" : "";
+                        if (!localData.gameStarted) {
+                            document.getElementById('setup-area').style.display = 'block';
+                            document.getElementById('host-part').style.display = isHost2 ? 'block' : 'none';
+                        }
+                        renderSeats();
+                    }
+                });
+            }, 800);
+            return;
+        }
+
+        // 清掉進場等待提示
+        const jm = document.getElementById('joining-msg');
+        if (jm) jm.remove();
+
+        const pKeys = Object.keys(localData.players);
+        const isHost = (pKeys[0] === myId);
+        document.body.className = isHost ? "is-host" : "";
+
+        // Emoji 廣播
+        if (localData.lastEmoji && localData.lastEmoji.time > lastEmojiTime) {
+            showEmojiBroadcast(localData.lastEmoji.name, localData.lastEmoji.icon);
+            lastEmojiTime = localData.lastEmoji.time;
+        }
+
+        // ALL IN 影片
+        if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
+            const v = document.getElementById('video-box');
+            v.innerHTML = `<video width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
+            document.getElementById('all-in-overlay').style.display='flex';
+            playSfx('sfx-allin');
+            setTimeout(() => document.getElementById('all-in-overlay').style.display='none', 2500);
+            lastEffectId = localData.allInTrigger;
+        }
+
+        // (1) 廣播飛牌：所有人都收到 lastShot 且 id 不同時播放
+        if (localData.lastShot && localData.lastShot.id !== lastShotId) {
+            const shot = localData.lastShot;
+            lastShotId = shot.id;
+            // 先更新左右柱（讓動畫結束位置正確）
+            updateCard('c1', localData.c1);
+            updateCard('c2', localData.c2);
+            document.getElementById('gate-inner').style.display = 'none';
+            animateShotCard(shot.card, shot.resultType, () => {
+                updateGateCard(localData.c3);
+                const sfxMap = { win:'sfx-win', crash:'sfx-crash', lose:'sfx-lose', fold:'sfx-fold' };
+                playSfx(sfxMap[shot.resultType] || 'sfx-lose');
+                if (shot.resultType === 'win') spawnConfetti(40);
+                showResultBanner(shot.emoji, shot.text, shot.delta);
+            });
+        }
+
+        if (localData.gameStarted) {
+            document.getElementById('setup-area').style.display = 'none';
+            document.getElementById('game-area').style.display = 'block';
+            renderUI(isHost);
+            const isTurnNow = (localData.currentPlayerKey === myId);
+            if (isTurnNow && !wasMyturn) showMyTurnToast();
+            wasMyturn = isTurnNow;
+        } else {
+            document.getElementById('setup-area').style.display = 'block';
+            document.getElementById('game-area').style.display = 'none';
+            document.getElementById('host-part').style.display = isHost ? 'block' : 'none';
+            wasMyturn = false;
+        }
+        renderSeats();
+    });
+}
+
+/* ════════════════════════════════════════════
+   RENDER UI
+════════════════════════════════════════════ */
+function renderUI(isHost) {
+    document.getElementById('pool-val').innerText = localData.pool || 0;
+    document.getElementById('status-msg').innerText = localData.statusMsg || "";
+    document.getElementById('cards-left').innerText = localData.deck ? localData.deck.length : 0;
+    document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 20;
+
+    updateCard('c1', localData.c1);
+    updateCard('c2', localData.c2);
+    // 只在非播放動畫時更新龍門（避免蓋掉飛牌）
+    if (!localData.lastShot || localData.lastShot.id === lastShotId)
+        updateGateCard(localData.c3);
+
+    const isTurn = (localData.currentPlayerKey === myId);
+    const table = document.getElementById('poker-table');
+    if (isTurn) table.classList.add('my-turn'); else table.classList.remove('my-turn');
+
+    // 牌堆互動狀態
+    const deck = document.getElementById('deck-stack');
+    const hint = document.getElementById('deck-hint');
+    const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
+
+    if (isTurn && localData.gameState === 'waiting_deal') {
+        deck.classList.add('clickable');
+        hint.innerText = '點擊抽牌';
+        hint.classList.add('show');
+        document.getElementById('bet-panel').style.display = 'none';
+    } else if (isTurn && localData.gameState === 'waiting_shoot') {
+        deck.classList.add('clickable');
+        hint.innerText = isSame ? '下注後猜大/猜小' : '下注後點擊射門';
+        hint.classList.add('show');
+        document.getElementById('bet-panel').style.display = 'block';
+    } else {
+        deck.classList.remove('clickable');
+        hint.classList.remove('show');
+        document.getElementById('bet-panel').style.display = 'none';
+    }
+
+    // 猜大/猜小 vs 射門
+    document.getElementById('shoot-normal').style.display = isSame ? 'none' : 'inline-block';
+    document.getElementById('btn-up').style.display   = isSame ? 'inline-block' : 'none';
+    document.getElementById('btn-down').style.display = isSame ? 'inline-block' : 'none';
+
+    // 牌庫數量 badge
+    document.getElementById('deck-count-badge').innerText = localData.deck ? localData.deck.length : 0;
+}
+
+/* ════════════════════════════════════════════
+   GAME ACTIONS
+════════════════════════════════════════════ */
+function hostStartGame() {
+    const fee   = parseInt(document.getElementById('entry-fee').value)    || 100;
+    const start = parseInt(document.getElementById('start-balance').value) || 1000;
+    const decks = parseInt(document.getElementById('deck-count').value)    || 2;
+    const refill = document.getElementById('auto-refill').checked;
+    let players = localData.players, pool = 0;
+    Object.keys(players).forEach(id => { players[id].balance = start - fee; pool += fee; });
+    gameRef.update({
+        gameStarted:true, deck:generateDecks(decks), pool, entryFee:fee,
+        foldPenalty: parseInt(document.getElementById('fold-penalty').value) || 20,
+        autoRefill:refill, deckCount:decks, gameState:'waiting_deal',
+        currentPlayerKey:Object.keys(players)[0], players,
+        lastActionTime:firebase.database.ServerValue.TIMESTAMP, statusMsg:"新局開始"
+    });
+}
+
+function drawGoalPost() {
+    playSfx('sfx-deal');
+    let deck = localData.deck || [];
+    if (deck.length < 3) deck = generateDecks(localData.deckCount || 2);
+    const c1 = deck.pop(); const c2 = deck.pop();
+    gameRef.update({
+        deck, c1, c2, c3:null, gameState:'waiting_shoot',
+        lastActionTime:firebase.database.ServerValue.TIMESTAMP, statusMsg:"請下注後抽門牌"
+    });
+}
+
+function handleAction(type) {
+    let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
+    if (type !== 'fold' && (bet < 1 || bet > localData.pool)) return alert("請下注");
+
+    let p = localData.players[myId], nBal = p.balance, nPool = localData.pool;
+    let msg = "", c3 = null, deck = localData.deck || [];
+    let resultType = 'neutral', deltaAmount = 0;
+
+    if (type === 'fold') {
+        nBal -= localData.foldPenalty; nPool += localData.foldPenalty;
+        msg = `${p.name} 棄牌`; resultType='fold'; deltaAmount=-localData.foldPenalty;
+    } else {
+        if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
+        c3 = deck.pop();
+        const min = Math.min(localData.c1.val, localData.c2.val);
+        const max = Math.max(localData.c1.val, localData.c2.val);
+
+        if (localData.c1.val === localData.c2.val) {
+            if (c3.val === localData.c1.val) {
+                nBal-=bet*3; nPool+=bet*3; msg=`撞柱(-$${bet*3})`; resultType='crash'; deltaAmount=-(bet*3);
+            } else if ((type==='up'&&c3.val>localData.c1.val)||(type==='down'&&c3.val<localData.c1.val)) {
+                nBal+=bet; nPool-=bet; msg=`猜對(+$${bet})`; resultType='win'; deltaAmount=bet;
+            } else {
+                nBal-=bet; nPool+=bet; msg=`猜錯(-$${bet})`; resultType='lose'; deltaAmount=-bet;
+            }
+        } else {
+            if (c3.val>min && c3.val<max) {
+                nBal+=bet; nPool-=bet; msg=`射進(+$${bet})`; resultType='win'; deltaAmount=bet;
+            } else if (c3.val===min||c3.val===max) {
+                nBal-=bet*2; nPool+=bet*2; msg=`撞柱(-$${bet*2})`; resultType='crash'; deltaAmount=-(bet*2);
+            } else {
+                nBal-=bet; nPool+=bet; msg=`沒進(-$${bet})`; resultType='lose'; deltaAmount=-bet;
+            }
+        }
+    }
+
+    const pKeys = Object.keys(localData.players);
+    let nextK = pKeys[(pKeys.indexOf(myId)+1) % pKeys.length];
+
+    // autoRefill
+    let updates = {
+        [`players/${myId}/balance`]:nBal, pool:nPool, deck, c3:c3||null,
+        statusMsg:msg, gameState:'waiting_deal', currentPlayerKey:nextK,
+        lastActionTime:firebase.database.ServerValue.TIMESTAMP
+    };
+    const minPool = localData.entryFee * pKeys.length;
+    const needRefill = (localData.autoRefill && nPool < minPool) || (nPool <= 0);
+    let refillTriggered = false;
+    if (needRefill) {
+        let total=0;
+        pKeys.forEach(k => {
+            const cb = (k===myId) ? nBal : localData.players[k].balance;
+            updates[`players/${k}/balance`] = cb - localData.entryFee;
+            total += localData.entryFee;
+        });
+        updates.pool = nPool + total;
+        refillTriggered = true;
+    }
+
+    // (1) 廣播飛牌資訊到 Firebase
+    const emojiMap = { win:'🎉', crash:'💥', lose:'😭', fold:'🏳️' };
+    const textMap  = {
+        win:  (type==='up'||type==='down') ? '猜對！' : '射進！',
+        crash:'撞柱！！',
+        lose: (type==='up'||type==='down') ? '猜錯了' : '沒進...',
+        fold: '棄牌'
+    };
+    if (type !== 'fold' && c3) {
+        updates.lastShot = {
+            id: getServerNow().toString(),
+            card: c3,
+            resultType,
+            emoji: emojiMap[resultType],
+            text:  textMap[resultType],
+            delta: deltaAmount
+        };
+    }
+    // 棄牌直接本機顯示（不廣播飛牌）
+    if (type === 'fold') {
+        playSfx('sfx-fold');
+        showResultBanner('🏳️', '棄牌', deltaAmount);
+        if (refillTriggered) showRefillToast(localData.entryFee, pKeys.length);
+    } else {
+        // refillToast 在動畫回調中顯示（由 startListening 的 lastShot 觸發）
+        if (refillTriggered) {
+            // 存到 updates 讓動畫回調後顯示
+            updates._refillFee   = localData.entryFee;
+            updates._refillCount = pKeys.length;
+        }
+    }
+
+    gameRef.update(updates);
+    document.getElementById('bet-amount').value = 0;
+}
+
+/* ════════════════════════════════════════════
+   UI HELPERS
+════════════════════════════════════════════ */
+function sendEmoji(icon) {
+    gameRef.update({ lastEmoji:{ name:localData.players[myId].name, icon, time:firebase.database.ServerValue.TIMESTAMP } });
+}
+function showEmojiBroadcast(name, icon) {
+    const a=document.getElementById('emoji-broadcast-area');
+    const d=document.createElement('div'); d.className='broadcast-item';
+    d.innerText=`${name}: ${icon}`; a.appendChild(d); setTimeout(()=>d.remove(),2500);
+}
+
+function updateCard(id, c) {
+    const el = document.getElementById(id);
+    if (!c) { el.classList.add('hidden'); el.innerText='?'; }
+    else { el.classList.remove('hidden'); el.innerText=`${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit==='♥'||c.suit==='♦'); }
+}
+function updateGateCard(c) {
+    const gi  = document.getElementById('gate-inner');
+    const c3g = document.getElementById('c3-in-gate');
+    if (!c) {
+        gi.style.display=''; gi.innerText='待射門';
+        c3g.style.display='none'; c3g.innerHTML='';
+    } else {
+        gi.style.display='none';
+        const isRed = c.suit==='♥'||c.suit==='♦';
+        c3g.style.display='block';
+        c3g.style.cssText='display:block;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10;';
+        c3g.innerHTML=`<div class="card${isRed?' red':''}" style="width:clamp(44px,9vw,64px);height:clamp(62px,13vw,90px);">${c.suit}\n${c.label}</div>`;
+    }
+}
+
+function addBet(v) {
+    let cur = parseInt(document.getElementById('bet-amount').value)||0;
+    document.getElementById('bet-amount').value = Math.min(cur+v, localData.pool);
+}
+function setAllIn() {
+    document.getElementById('allin-pool-preview').innerText = '$'+(localData.pool||0);
+    document.getElementById('all-in-confirm-overlay').classList.add('show');
+}
+function cancelAllIn() { document.getElementById('all-in-confirm-overlay').classList.remove('show'); }
+function confirmAllIn() {
+    document.getElementById('all-in-confirm-overlay').classList.remove('show');
+    gameRef.update({ allInTrigger: getServerNow().toString() });
+    document.getElementById('bet-amount').value = localData.pool;
+}
+
+function generateDecks(count) {
+    let deck=[];
+    const suits=['♠','♥','♦','♣'];
+    for (let i=0;i<count;i++) suits.forEach(s=>{ for(let v=1;v<=13;v++) deck.push({val:v,suit:s,label:labels[v]||v}); });
+    return deck.sort(()=>Math.random()-0.5);
+}
+function kickPlayer(id) { if(confirm("剔除該玩家？")) gameRef.child('players/'+id).remove(); }
+function hostResetToLobby() { if(confirm("重製大廳狀態？")) gameRef.update({gameStarted:false}); }
+</script>
+</body>
+</html>
