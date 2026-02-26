@@ -149,7 +149,7 @@ html,body{ width:100%; height:100%; background:#0d1f15; color:white; font-family
     display:flex; flex-direction:column; align-items:center; gap:4px;
     z-index:10; pointer-events:none;
 }
-#pool-display{ font-size:clamp(14px,3vmin,22px); color:#f1c40f; font-weight:bold; text-shadow:0 2px 8px rgba(0,0,0,0.8); }
+#pool-display{ font-size:clamp(20px,4.5vmin,34px); color:#f1c40f; font-weight:bold; text-shadow:0 2px 8px rgba(0,0,0,0.8); }
 #status-msg{ font-size:clamp(8px,1.7vmin,12px); color:#ccc; min-height:14px; }
 #cards-and-deck{ display:flex; align-items:center; gap:clamp(4px,1.5vmin,12px); pointer-events:auto; }
 
@@ -499,11 +499,7 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
     content:''; position:absolute; inset:1px 2px; border-radius:50%;
     border-top:1px solid rgba(255,255,255,0.18);
 }
-.table-chip-label{
-    font-size:clamp(7px,1.2vmin,10px); color:rgba(255,255,255,0.7);
-    margin-top:clamp(2px,0.5vmin,4px); letter-spacing:0.5px;
-    text-shadow:0 1px 2px rgba(0,0,0,0.8);
-}
+.table-chip-label{ display:none; }
 /* chip colors by denomination */
 .tc-10  { background:linear-gradient(180deg,#4a8fd4 0%,#1a5276 50%,#154060 100%); border:1.5px solid #3498db; }
 .tc-50  { background:linear-gradient(180deg,#a0e0f0 0%,#1a6080 50%,#154360 100%); border:1.5px solid #76d7ea; }
