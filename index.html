@@ -17,9 +17,9 @@
     --red:  #e74c3c;
     --wood: #8B6914;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --safe-left: env(safe-area-inset-left, 0px);
-    --safe-right: env(safe-area-inset-right, 0px);
-    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-left:   env(safe-area-inset-left,   0px);
+    --safe-right:  env(safe-area-inset-right,  0px);
+    --safe-top:    env(safe-area-inset-top,    0px);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
@@ -66,59 +66,8 @@ html, body {
 #host-part h3 { color: var(--gold); margin-bottom: 12px; font-size: 1rem; }
 
 /* ════════════════════════════════════════
-   ★ 方向選擇切換器（登入畫面）
-════════════════════════════════════════ */
-.orient-switcher {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    background: #1a1a1a;
-    border-radius: 10px;
-    border: 1.5px solid #444;
-    overflow: hidden;
-    margin-bottom: 16px;
-    width: 100%;
-}
-.orient-btn {
-    flex: 1;
-    padding: 10px 8px;
-    border: none;
-    background: transparent;
-    color: #888;
-    font-size: 0.88rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.22s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-.orient-btn .orient-icon {
-    font-size: 1.2rem;
-    display: inline-block;
-    transition: transform 0.22s;
-}
-.orient-btn.active {
-    background: var(--gold);
-    color: #1a1a1a;
-    border-radius: 8px;
-}
-.orient-btn:not(.active):hover { color: #ddd; background: rgba(255,255,255,0.05); }
-/* 直屏圖示旋轉顯示 */
-.orient-btn[data-mode="portrait"] .orient-icon { transform: rotate(90deg); }
-.orient-hint {
-    font-size: 0.75rem;
-    color: #777;
-    text-align: center;
-    margin-bottom: 10px;
-    line-height: 1.4;
-}
-.orient-hint span { color: var(--gold); }
-
-/* ════════════════════════════════════════
-   遊戲畫面基底
+   (1) 遊戲畫面 — 自動方向（直屏手機自動旋轉）
+   不需要選擇器，CSS media query 全部玩家通用
 ════════════════════════════════════════ */
 #game-screen {
     display: none;
@@ -127,21 +76,12 @@ html, body {
     width: 100%; height: 100%;
 }
 
-/*
-   ★ 方向控制：
-   - 預設（橫屏模式）：不旋轉，手機橫放
-   - body.prefer-portrait + 手機直拿（portrait）：旋轉遊戲畫面
-   - body.prefer-portrait + 手機已橫放（landscape）：不旋轉（已是橫屏，無需轉）
-   - body.prefer-landscape（橫屏模式）：與舊版行為相同
-*/
-
-/* 直屏偏好 × 手機直拿 → 旋轉遊戲 */
+/* 直屏手機 → 旋轉遊戲畫面，讓所有人都橫向體驗 */
 @media (orientation: portrait) {
-    body.prefer-portrait #game-screen {
+    #game-screen {
         width: 100vh;
         height: 100vw;
-        top: 0;
-        left: 0;
+        top: 0; left: 0;
         transform-origin: 0 0;
         transform: rotate(90deg) translateX(0) translateY(-100%);
     }
@@ -152,7 +92,7 @@ html, body {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
     background: #0d1f15;
-    padding-left: max(var(--safe-left), 8px);
+    padding-left:  max(var(--safe-left),  8px);
     padding-right: max(var(--safe-right), 8px);
     padding-bottom: max(var(--safe-bottom), 0px);
 }
@@ -160,7 +100,7 @@ html, body {
 /* 橢圓桌 */
 #oval {
     position: relative;
-    width: min(96vw, 1100px);
+    width:  min(96vw, 1100px);
     height: min(78vh, 560px);
     background: radial-gradient(ellipse at 50% 45%, #3a7a52 0%, #2d5a3c 55%, #1e4a30 100%);
     border-radius: 50%;
@@ -189,50 +129,28 @@ html, body {
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -56%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    z-index: 10;
-    pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    z-index: 10; pointer-events: none;
 }
-#pool-display {
-    font-size: clamp(16px, 3vmin, 24px);
-    color: #f1c40f;
-    font-weight: bold;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-}
-#status-msg {
-    font-size: clamp(9px, 1.8vmin, 13px);
-    color: #ccc;
-    min-height: 14px;
-}
+#pool-display { font-size: clamp(16px,3vmin,24px); color: #f1c40f; font-weight: bold; text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
+#status-msg   { font-size: clamp(9px,1.8vmin,13px); color: #ccc; min-height: 14px; }
 
-/* 牌行 */
-#cards-and-deck {
-    display: flex;
-    align-items: center;
-    gap: clamp(4px, 1.5vmin, 12px);
-    pointer-events: auto;
-}
+#cards-and-deck { display: flex; align-items: center; gap: clamp(4px,1.5vmin,12px); pointer-events: auto; }
 
 /* 門柱 */
 .post-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .post-label { font-size: clamp(7px,1.4vmin,10px); color: #aaa; letter-spacing: 1px; }
 .post-label.gate { color: var(--gold); font-weight: bold; }
-.connector { width: clamp(4px,1.2vmin,10px); height: 3px; background: linear-gradient(90deg, rgba(212,175,55,0.6), rgba(212,175,55,0.2)); align-self: center; flex-shrink: 0; }
-.connector.r { background: linear-gradient(90deg, rgba(212,175,55,0.2), rgba(212,175,55,0.6)); }
+.connector   { width: clamp(4px,1.2vmin,10px); height: 3px; background: linear-gradient(90deg,rgba(212,175,55,0.6),rgba(212,175,55,0.2)); align-self: center; flex-shrink: 0; }
+.connector.r { background: linear-gradient(90deg,rgba(212,175,55,0.2),rgba(212,175,55,0.6)); }
 
 /* 牌 */
 .card {
-    width:  clamp(44px, 7.5vmin, 68px);
-    height: clamp(62px,10.5vmin,96px);
+    width: clamp(44px,7.5vmin,68px); height: clamp(62px,10.5vmin,96px);
     background: white; border-radius: 8px; color: black;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
     font-size: clamp(15px,3.2vmin,26px); font-weight: bold;
-    border: 2px solid #333;
-    box-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    border: 2px solid #333; box-shadow: 2px 2px 8px rgba(0,0,0,0.5);
     white-space: pre-wrap; flex-shrink: 0;
 }
 .card.hidden { background: #1e3a5f; color: transparent; border-color: #3a6a9f; }
@@ -240,10 +158,8 @@ html, body {
 
 /* 龍門框 */
 .gate-frame {
-    width:  clamp(44px, 7.5vmin, 68px);
-    height: clamp(62px,10.5vmin,96px);
-    border: 2px dashed rgba(212,175,55,0.4);
-    border-radius: 8px;
+    width: clamp(44px,7.5vmin,68px); height: clamp(62px,10.5vmin,96px);
+    border: 2px dashed rgba(212,175,55,0.4); border-radius: 8px;
     background: rgba(212,175,55,0.04);
     display: flex; align-items: center; justify-content: center;
     position: relative; overflow: visible; flex-shrink: 0;
@@ -253,9 +169,7 @@ html, body {
 
 /* 牌堆 */
 #deck-stack {
-    position: relative;
-    width:  clamp(44px, 7.5vmin, 68px);
-    height: clamp(62px,10.5vmin,96px);
+    position: relative; width: clamp(44px,7.5vmin,68px); height: clamp(62px,10.5vmin,96px);
     cursor: default; flex-shrink: 0;
 }
 .dk { position:absolute; width:100%; height:100%; border-radius:8px; border:1.5px solid #3a6a9f; }
@@ -271,22 +185,12 @@ html, body {
 #deck-stack.can-click { cursor: pointer; animation: deckPulse 1s ease-in-out infinite; }
 #deck-stack.can-click .dk:nth-child(3) {
     background: linear-gradient(135deg,#4a80cc,#2a5090);
-    box-shadow: 0 0 18px rgba(212,175,55,0.7), 3px 3px 10px rgba(0,0,0,0.7);
+    box-shadow: 0 0 18px rgba(212,175,55,0.7),3px 3px 10px rgba(0,0,0,0.7);
     border-color: var(--gold);
 }
 @keyframes deckPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.09);} }
-#deck-badge {
-    position:absolute; bottom:-8px; right:-8px; z-index:6;
-    background:var(--gold); color:#1a472a; font-size:9px; font-weight:bold;
-    border-radius:10px; padding:1px 5px;
-}
-#deck-hint {
-    position: absolute;
-    bottom: -20px; left: 50%; transform: translateX(-50%);
-    white-space: nowrap;
-    font-size: clamp(7px,1.4vmin,10px); color:var(--gold);
-    opacity:0; transition:opacity 0.3s; pointer-events:none;
-}
+#deck-badge { position:absolute; bottom:-8px; right:-8px; z-index:6; background:var(--gold); color:#1a472a; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 5px; }
+#deck-hint { position:absolute; bottom:-20px; left:50%; transform:translateX(-50%); white-space:nowrap; font-size:clamp(7px,1.4vmin,10px); color:var(--gold); opacity:0; transition:opacity 0.3s; pointer-events:none; }
 #deck-hint.show { opacity:1; }
 
 /* ════════════════════════════════════════
@@ -294,167 +198,92 @@ html, body {
 ════════════════════════════════════════ */
 .seat { position:absolute; transform:translate(-50%,-50%); z-index:20; text-align:center; }
 .seat-box {
-    background: rgba(0,0,0,0.82);
-    border: 2px solid #555; border-radius: 10px;
-    padding: 3px 7px;
-    font-size: clamp(7px,1.5vmin,11px);
-    min-width: clamp(46px,9vmin,80px);
-    max-width: clamp(54px,10vmin,88px);
-    line-height: 1.3; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
+    background: rgba(0,0,0,0.82); border: 2px solid #555; border-radius: 10px;
+    padding: 3px 7px; font-size: clamp(7px,1.5vmin,11px);
+    min-width: clamp(46px,9vmin,80px); max-width: clamp(54px,10vmin,88px);
+    line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.seat-box.active { border-color:var(--gold); box-shadow:0 0 10px var(--gold); background:rgba(212,175,55,0.12); }
-.seat-box.is-me  { border-color:#3498db; }
+.seat-box.active   { border-color:var(--gold); box-shadow:0 0 10px var(--gold); background:rgba(212,175,55,0.12); }
+.seat-box.is-me    { border-color:#3498db; }
 .seat-box.active.is-me { border-color:var(--gold); }
+/* (2) 踢出緩衝期：座位灰色 + 刪除倒數 */
+.seat-box.kicked   { border-color:#e74c3c; background:rgba(231,76,60,0.12); opacity:0.6; }
 .seat-name { font-weight:bold; }
 .seat-bal  { color:#2ecc71; font-size:clamp(6px,1.3vmin,10px); }
 .seat-tmr  { color:#ff7675; font-size:clamp(5px,1.1vmin,9px); }
 .seat-kick { position:absolute; top:-5px; right:-5px; background:#e74c3c; color:white; border-radius:50%; width:16px; height:16px; border:1px solid white; display:none; cursor:pointer; font-size:9px; line-height:14px; z-index:25; }
 body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 
-/* ════════════════════════════════════════
-   下注面板
-════════════════════════════════════════ */
+/* ── 下注面板 ── */
 #bet-panel {
-    position: absolute;
-    bottom: 6%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 80%;
-    display: none;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 6px 10px 8px;
-    background: rgba(0,0,0,0.78);
-    border-radius: 14px;
-    border: 1px solid rgba(212,175,55,0.35);
-    z-index: 30;
-    pointer-events: auto;
-    flex-wrap: wrap;
+    position: absolute; bottom: 6%; left: 50%; transform: translateX(-50%);
+    width: 80%; display: none; flex-direction: row; align-items: center;
+    justify-content: center; gap: 6px; padding: 6px 10px 8px;
+    background: rgba(0,0,0,0.78); border-radius: 14px;
+    border: 1px solid rgba(212,175,55,0.35); z-index: 30;
+    pointer-events: auto; flex-wrap: wrap;
 }
-
 .chip-row { display:flex; gap:4px; align-items:center; }
 .chip-btn { background:none; border:none; padding:0; cursor:pointer; }
 .chip-btn:active { transform:scale(0.88); }
-.chip-btn img {
-    width: clamp(32px,5.5vmin,46px);
-    height: clamp(32px,5.5vmin,46px);
-    border-radius:50%;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-}
-
+.chip-btn img { width:clamp(32px,5.5vmin,46px); height:clamp(32px,5.5vmin,46px); border-radius:50%; box-shadow:0 2px 6px rgba(0,0,0,0.5); }
 .bet-actions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center; }
-#bet-amount {
-    background:#222; color:var(--gold);
-    border:2px solid var(--gold); font-size:0.95rem;
-    width:64px; border-radius:7px; padding:2px 5px; text-align:center;
-}
-
+#bet-amount { background:#222; color:var(--gold); border:2px solid var(--gold); font-size:0.95rem; width:64px; border-radius:7px; padding:2px 5px; text-align:center; }
 .action-row { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; align-items:center; }
-.action-row button {
-    padding: 6px 10px; border:none; border-radius:7px;
-    font-weight:bold; cursor:pointer;
-    font-size: clamp(10px,1.6vmin,13px);
-    white-space: nowrap;
-}
+.action-row button { padding:6px 10px; border:none; border-radius:7px; font-weight:bold; cursor:pointer; font-size:clamp(10px,1.6vmin,13px); white-space:nowrap; }
 .btn-shoot { background:#2ecc71; color:white; }
 .btn-up    { background:#3498db; color:white; }
 .btn-down  { background:#e67e22; color:white; }
 .btn-allin { background:var(--red); color:white; }
 .btn-fold  { background:#7f8c8d; color:white; }
 .btn-clear { background:#444; color:white; padding:6px 7px !important; font-size:clamp(9px,1.4vmin,12px) !important; }
-
 .bet-divider { width:1px; height:36px; background:rgba(255,255,255,0.15); margin:0 2px; }
 
-/* ════════════════════════════════════════
-   ★ Emoji 摺疊
-════════════════════════════════════════ */
+/* ── Emoji 摺疊 ── */
 #emoji-toggle {
-    position: absolute;
-    left: 10px;
-    bottom: 12px;
-    width: 36px; height: 36px;
-    background: rgba(0,0,0,0.65);
-    border: 1px solid rgba(212,175,55,0.5);
-    border-radius: 50%;
-    font-size: 1.2rem;
-    cursor: pointer;
-    z-index: 31;
-    display: none;
-    align-items: center; justify-content: center;
-    transition: background 0.2s;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    position:absolute; left:10px; bottom:12px; width:36px; height:36px;
+    background:rgba(0,0,0,0.65); border:1px solid rgba(212,175,55,0.5);
+    border-radius:50%; font-size:1.2rem; cursor:pointer; z-index:31;
+    display:none; align-items:center; justify-content:center;
+    transition:background 0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.5);
 }
-#emoji-toggle.open { background: rgba(212,175,55,0.25); border-color: var(--gold); }
-#emoji-toggle:active { transform: scale(0.9); }
-
+#emoji-toggle.open { background:rgba(212,175,55,0.25); border-color:var(--gold); }
+#emoji-toggle:active { transform:scale(0.9); }
 #emoji-bar {
-    position: absolute;
-    left: 52px;
-    bottom: 8px;
-    display: none;
-    gap: 5px;
-    z-index: 30;
-    pointer-events: auto;
-    background: rgba(0,0,0,0.78);
-    padding: 5px 8px;
-    border-radius: 22px;
-    border: 1px solid rgba(212,175,55,0.3);
-    transform-origin: left center;
-    animation: emojiSlideIn 0.2s ease-out;
+    position:absolute; left:52px; bottom:8px; display:none; gap:5px; z-index:30;
+    pointer-events:auto; background:rgba(0,0,0,0.78); padding:5px 8px;
+    border-radius:22px; border:1px solid rgba(212,175,55,0.3);
+    transform-origin:left center; animation:emojiSlideIn 0.2s ease-out;
 }
-@keyframes emojiSlideIn {
-    from { opacity:0; transform: scaleX(0.3); }
-    to   { opacity:1; transform: scaleX(1); }
-}
-.emoji-btn {
-    font-size:1.2rem; background:none; border:none;
-    border-radius:50%; width:34px; height:34px; cursor:pointer;
-    transition: transform 0.15s;
-}
-.emoji-btn:active { transform: scale(1.3); }
+@keyframes emojiSlideIn { from{opacity:0;transform:scaleX(0.3);} to{opacity:1;transform:scaleX(1);} }
+.emoji-btn { font-size:1.2rem; background:none; border:none; border-radius:50%; width:34px; height:34px; cursor:pointer; transition:transform 0.15s; }
+.emoji-btn:active { transform:scale(1.3); }
 
-/* ── 右下角工具列 ── */
-#tools {
-    position: absolute; bottom: 10px; right: 10px;
-    display: none; flex-direction: column;
-    gap: 5px; z-index: 30; align-items: flex-end;
-    pointer-events: auto;
-}
+/* ── 右下角工具 ── */
+#tools { position:absolute; bottom:10px; right:10px; display:none; flex-direction:column; gap:5px; z-index:30; align-items:flex-end; pointer-events:auto; }
 .tool-btn { background:rgba(0,0,0,0.6); border:1px solid #555; color:var(--gold); border-radius:20px; padding:5px 10px; cursor:pointer; font-size:clamp(9px,1.6vmin,12px); white-space:nowrap; }
 .tool-btn:active { filter:brightness(1.3); }
 
-/* ════════════════════════════════════════
-   ★ Canvas — portrait 旋轉只在 prefer-portrait body 時套用
-════════════════════════════════════════ */
-#shot-canvas {
-    position: fixed; inset: 0;
-    pointer-events: none; z-index: 7000;
-}
+/* ── Canvas（配合 portrait 旋轉） ── */
+#shot-canvas { position:fixed; inset:0; pointer-events:none; z-index:7000; }
 @media (orientation: portrait) {
-    body.prefer-portrait #shot-canvas {
-        width: 100vh;
-        height: 100vw;
-        top: 0; left: 0;
-        transform-origin: 0 0;
-        transform: rotate(90deg) translateX(0) translateY(-100%);
+    #shot-canvas {
+        width:100vh; height:100vw; top:0; left:0;
+        transform-origin:0 0;
+        transform:rotate(90deg) translateX(0) translateY(-100%);
     }
 }
 
-/* result-banner */
+/* ── 結果橫幅 ── */
 #result-banner {
     display:none; position:fixed; top:50%; left:50%;
     transform:translate(-50%,-50%) scale(0.5);
     z-index:8000; background:rgba(0,0,0,0.93);
-    border-radius:20px; padding:14px 28px;
-    border:3px solid var(--gold); text-align:center;
-    transition:transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.35s;
+    border-radius:20px; padding:14px 28px; border:3px solid var(--gold); text-align:center;
+    transition:transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275),opacity 0.35s;
     opacity:0; pointer-events:none;
 }
 #result-banner.show { display:block; transform:translate(-50%,-50%) scale(1); opacity:1; }
-
 .rb-emoji  { font-size:2.2rem; }
 .rb-text   { font-size:1.3rem; font-weight:bold; margin:3px 0; }
 .rb-amount { font-size:1.7rem; font-weight:bold; }
@@ -473,32 +302,37 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 .allin-amount { font-size:2rem; color:var(--gold); font-weight:bold; margin-bottom:16px; }
 .allin-yes { background:var(--red)!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
 .allin-no  { background:#555!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
-
 #all-in-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.96); z-index:9999; flex-direction:column; justify-content:center; align-items:center; }
 #all-in-overlay h1 { color:var(--gold); margin-top:20px; }
 
-/* ★ my-turn-toast 不隨遊戲旋轉，固定在螢幕右側 */
 #my-turn-toast {
-    display:none; position:fixed;
-    top: 50%; right: 12px;
-    transform: translateY(-50%) translateX(60px);
+    display:none; position:fixed; top:50%; right:12px;
+    transform:translateY(-50%) translateX(60px);
     background:var(--gold); color:#1a472a; font-weight:bold; font-size:0.9rem;
     padding:8px 18px; border-radius:30px; z-index:8500;
     box-shadow:0 4px 20px rgba(0,0,0,0.6);
-    animation: toastSlideIn 0.4s ease-out forwards;
+    animation:toastSlideIn 0.4s ease-out forwards;
 }
 @keyframes toastSlideIn {
-    from { transform: translateY(-50%) translateX(60px); opacity:0; }
-    to   { transform: translateY(-50%) translateX(0); opacity:1; }
+    from{transform:translateY(-50%) translateX(60px);opacity:0;}
+    to{transform:translateY(-50%) translateX(0);opacity:1;}
 }
-
 #refill-toast { display:none; position:fixed; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); color:var(--gold); border:2px solid var(--gold); font-size:0.85rem; padding:7px 18px; border-radius:20px; z-index:8500; white-space:nowrap; }
+
+/* (2) 重連提示 toast */
+#reconnect-toast {
+    display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.95); color:var(--gold);
+    border:2px solid var(--gold); border-radius:16px;
+    padding:16px 28px; text-align:center; z-index:9500;
+    font-size:1rem; line-height:1.6;
+}
+#reconnect-toast b { color:#fff; font-size:1.1rem; }
 
 #emoji-broadcast-area { position:fixed; top:30%; left:50%; transform:translate(-50%,-50%); pointer-events:none; z-index:10000; }
 .broadcast-item { background:rgba(0,0,0,0.88); color:var(--gold); padding:7px 16px; border-radius:30px; margin-bottom:5px; font-weight:bold; border:2px solid var(--gold); animation:fadeUp 2.5s forwards; white-space:nowrap; }
 @keyframes fadeUp { 0%{opacity:0;transform:translateY(10px);} 15%{opacity:1;transform:translateY(0);} 80%{opacity:1;} 100%{opacity:0;transform:translateY(-15px);} }
 
-/* 卡牌勝負動畫 */
 @keyframes winPulse  { 0%{box-shadow:2px 2px 8px rgba(0,0,0,0.5);} 40%{transform:scale(1.15);box-shadow:0 0 28px #2ecc71,0 0 55px #2ecc71;} 100%{box-shadow:2px 2px 8px rgba(0,0,0,0.5);} }
 @keyframes losePulse { 0%{transform:scale(1);} 20%{transform:translateX(-7px) scale(1.05);box-shadow:0 0 22px var(--red);} 40%{transform:translateX(7px) scale(1.05);box-shadow:0 0 22px var(--red);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} 100%{transform:scale(1);} }
 @keyframes crashPulse{ 0%{transform:scale(1);} 30%{transform:scale(1.18) rotate(-5deg);box-shadow:0 0 38px #f39c12;} 60%{transform:scale(1.1) rotate(5deg);} 100%{transform:scale(1);} }
@@ -506,7 +340,6 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 .anim-lose  { animation:losePulse 0.7s ease-out; }
 .anim-crash { animation:crashPulse 0.7s ease-out; }
 
-/* 隱藏舊版元素 */
 #main-board, #player-area-wrapper, .player-toggle-btn { display:none!important; }
     </style>
 </head>
@@ -514,6 +347,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 
 <canvas id="shot-canvas"></canvas>
 <div id="emoji-broadcast-area"></div>
+<div id="reconnect-toast"></div>
 
 <div id="result-banner">
     <div class="rb-emoji" id="rb-emoji">🎉</div>
@@ -541,27 +375,11 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 <audio id="sfx-allin" src="sfx/allin.mp3" preload="auto"></audio>
 <audio id="sfx-deal"  src="sfx/deal.mp3"  preload="auto"></audio>
 
-<!-- ══ 登入畫面 ══ -->
+<!-- ══ 登入畫面（移除方向選擇器，直接進入） ══ -->
 <div id="setup-screen">
     <h1>🏟️ 埔墘金龍門 Pro</h1>
     <div class="setup-box">
         <div id="login-part">
-
-            <!-- ★ 方向選擇器 -->
-            <div style="margin-bottom:4px;">
-                <div class="orient-switcher">
-                    <button class="orient-btn active" data-mode="landscape" onclick="setOrient('landscape')">
-                        <span class="orient-icon">📱</span> 橫屏模式
-                    </button>
-                    <button class="orient-btn" data-mode="portrait" onclick="setOrient('portrait')">
-                        <span class="orient-icon">📱</span> 直屏模式
-                    </button>
-                </div>
-                <div class="orient-hint" id="orient-hint">
-                    <span>橫屏</span>：手機打橫，畫面正常顯示
-                </div>
-            </div>
-
             <div class="input-row">
                 <label>暱稱</label>
                 <input type="text" id="my-name" placeholder="輸入暱稱">
@@ -594,21 +412,15 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 <div id="game-screen">
     <div id="table-wrap">
         <div id="oval">
-
-            <!-- 桌面中央 -->
             <div id="table-center">
                 <div id="pool-display">💰 $<span id="pool-val">0</span></div>
                 <div id="status-msg"></div>
-
                 <div id="cards-and-deck">
-                    <!-- 左柱 -->
                     <div class="post-wrap">
                         <div class="post-label">左柱</div>
                         <div id="c1" class="card hidden">?</div>
                     </div>
                     <div class="connector"></div>
-
-                    <!-- 龍門 -->
                     <div class="post-wrap">
                         <div class="post-label gate">🐉 龍門</div>
                         <div class="gate-frame" id="gate-frame">
@@ -617,19 +429,13 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
                         </div>
                     </div>
                     <div class="connector r"></div>
-
-                    <!-- 右柱 -->
                     <div class="post-wrap">
                         <div class="post-label">右柱</div>
                         <div id="c2" class="card hidden">?</div>
                     </div>
-
-                    <!-- 分隔 -->
                     <div style="width:2px;height:50px;background:rgba(255,255,255,0.1);margin:0 3px;align-self:center;flex-shrink:0;"></div>
-
-                    <!-- 牌堆 -->
                     <div class="post-wrap" style="position:relative;">
-                        <div class="post-label" id="cards-left-lbl" style="color:#aaa;">牌庫</div>
+                        <div class="post-label" style="color:#aaa;">牌庫</div>
                         <div id="deck-stack" onclick="onDeckClick()">
                             <div class="dk"></div>
                             <div class="dk"></div>
@@ -638,18 +444,15 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
                         <div id="deck-hint">點擊抽牌</div>
                     </div>
                 </div>
-
                 <div style="font-size:clamp(7px,1.3vmin,10px);color:#888;margin-top:1px;">剩 <span id="cards-left">0</span> 張</div>
             </div>
 
-            <!-- 座位層 -->
             <div id="seats-layer"></div>
 
-            <!-- 下注面板 -->
             <div id="bet-panel">
                 <div class="chip-row">
-                    <button class="chip-btn" onclick="addBet(10)"><img src="pic/m10.jpg" onerror="this.style.cssText='width:34px;height:34px;border-radius:50%;background:#27ae60;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;'; this.outerHTML='<div onclick=\'addBet(10)\' style=\'width:34px;height:34px;border-radius:50%;background:#27ae60;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>10</div>'"></button>
-                    <button class="chip-btn" onclick="addBet(50)"><img src="pic/m50.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(50)\' style=\'width:34px;height:34px;border-radius:50%;background:#2980b9;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>50</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(10)"><img src="pic/m10.jpg"   onerror="this.outerHTML='<div onclick=\'addBet(10)\' style=\'width:34px;height:34px;border-radius:50%;background:#27ae60;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>10</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(50)"><img src="pic/m50.jpg"   onerror="this.parentElement.innerHTML='<div onclick=\'addBet(50)\' style=\'width:34px;height:34px;border-radius:50%;background:#2980b9;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>50</div>'"></button>
                     <button class="chip-btn" onclick="addBet(100)"><img src="pic/m100.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(100)\' style=\'width:34px;height:34px;border-radius:50%;background:#8e44ad;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>100</div>'"></button>
                     <button class="chip-btn" onclick="addBet(500)"><img src="pic/m500.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(500)\' style=\'width:34px;height:34px;border-radius:50%;background:#e67e22;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>500</div>'"></button>
                     <button class="chip-btn" onclick="addBet(1000)"><img src="pic/m1000.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(1000)\' style=\'width:34px;height:34px;border-radius:50%;background:#c0392b;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>1K</div>'"></button>
@@ -668,10 +471,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
                 </div>
             </div>
 
-            <!-- Emoji 開關 -->
             <button id="emoji-toggle" onclick="toggleEmojiBar()" title="表情符號">😄</button>
-
-            <!-- Emoji 列 -->
             <div id="emoji-bar">
                 <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
                 <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
@@ -681,664 +481,728 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
                 <button class="emoji-btn" onclick="sendEmoji('👑')">👑</button>
             </div>
 
-            <!-- 右下角工具 -->
             <div id="tools">
                 <button class="tool-btn" id="host-reset-btn" onclick="hostResetToLobby()" style="display:none;">🚨 重製</button>
             </div>
+        </div>
+    </div>
+</div>
 
-        </div><!-- /oval -->
-    </div><!-- /table-wrap -->
-</div><!-- /game-screen -->
-
-<!-- 舊版保留 DOM -->
 <div style="display:none;">
     <div id="setup-area"></div>
-    <div id="main-board">
-        <div id="bet-controls"></div>
-        <div id="player-deal-btn"></div>
-        <div id="host-controls"></div>
-    </div>
+    <div id="main-board"><div id="bet-controls"></div><div id="player-deal-btn"></div><div id="host-controls"></div></div>
     <div id="player-area-wrapper"><div id="player-area"></div></div>
 </div>
 
 <script>
-    /* ════════════════════════════════════════
-       ★ 方向偏好（每人獨立，存 localStorage）
-    ════════════════════════════════════════ */
-    let myOrientPrefer = localStorage.getItem('orientPrefer') || 'landscape';
+/* ════════════════════════════════════════
+   Firebase
+════════════════════════════════════════ */
+const firebaseConfig = {
+    apiKey: "AIzaSyDzd-2ZUgrDM8K_85_qSOgpkWuWNzBUBL8",
+    authDomain: "dargongatepoker.firebaseapp.com",
+    databaseURL: "https://dargongatepoker-default-rtdb.firebaseio.com",
+    projectId: "dargongatepoker",
+    storageBucket: "dargongatepoker.firebasestorage.app",
+    messagingSenderId: "204663560828",
+    appId: "1:204663560828:web:9ede7b6190babde73f07f9"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const gameRef = db.ref('dragonGate/room1');
 
-    function setOrient(mode) {
-        myOrientPrefer = mode;
-        localStorage.setItem('orientPrefer', mode);
-        applyOrient();
+/* ════════════════════════════════════════
+   全域狀態
+════════════════════════════════════════ */
+let myId         = "";
+let localData    = {};
+let lastEffectId = "INITIAL";
+let lastShotId   = "INITIAL";
+let lastEmojiTime = 0;
+let serverOffset  = 0;
+let wasMyturn     = false;
+let emojiBarOpen  = false;
+const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
 
-        /* 更新按鈕樣式 */
-        document.querySelectorAll('.orient-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.mode === mode);
-        });
+/* ════════════════════════════════════════
+   (2) localStorage 重連 — 儲存 myId 與名字
+   ════════════════════════════════════════
+   流程：
+   1. 進入時先讀 localStorage 的 savedId + savedName
+   2. 如果 Firebase 上那個 id 還存在（未被刪）→ 直接繼承
+   3. 如果不存在（已被刪/超時）→ 重新建立新 id
+   4. 離開/踢除後 Firebase 上加 kickedAt 時間戳，
+      10 秒後才真正 remove，這段時間玩家可以重連繼承
+════════════════════════════════════════ */
+const RECONNECT_WINDOW = 60 * 1000; // 60秒內同名同id可繼承
+const KICK_GRACE       = 10 * 1000; // 被踢/超時後 10 秒才刪
 
-        /* 更新提示文字 */
-        const hint = document.getElementById('orient-hint');
-        if (mode === 'landscape') {
-            hint.innerHTML = '<span>橫屏</span>：手機打橫，畫面正常顯示';
-        } else {
-            hint.innerHTML = '<span>直屏</span>：手機直拿，畫面自動旋轉';
-        }
+db.ref(".info/serverTimeOffset").on("value", s => serverOffset = s.val());
+function getServerNow() { return Date.now() + serverOffset; }
+
+/* ── 音效 ── */
+function playSfx(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.currentTime = 0;
+    el.play().catch(() => {});
+}
+
+/* ── Emoji 摺疊 ── */
+function toggleEmojiBar() {
+    emojiBarOpen = !emojiBarOpen;
+    const bar = document.getElementById('emoji-bar');
+    const btn = document.getElementById('emoji-toggle');
+    if (emojiBarOpen) {
+        bar.style.display = 'flex';
+        btn.classList.add('open');
+        btn.innerText = '✕';
+    } else {
+        bar.style.display = 'none';
+        btn.classList.remove('open');
+        btn.innerText = '😄';
+    }
+}
+
+/* ── 飛牌動畫 ── */
+function animateShotCard(cardData, resultType, onDone) {
+    const canvas = document.getElementById('shot-canvas');
+    const ctx    = canvas.getContext('2d');
+
+    const isPortrait = window.innerHeight > window.innerWidth;
+    if (isPortrait) {
+        canvas.width  = window.innerHeight;
+        canvas.height = window.innerWidth;
+    } else {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
     }
 
-    function applyOrient() {
-        /* 只改 body class，CSS media query 負責實際旋轉 */
-        document.body.classList.toggle('prefer-portrait',  myOrientPrefer === 'portrait');
-        document.body.classList.toggle('prefer-landscape', myOrientPrefer === 'landscape');
+    const gateRect = document.getElementById('gate-frame').getBoundingClientRect();
+    const deckRect = document.getElementById('deck-stack').getBoundingClientRect();
+    const c1Rect   = document.getElementById('c1').getBoundingClientRect();
+    const c2Rect   = document.getElementById('c2').getBoundingClientRect();
+
+    function tr(rect) {
+        if (!isPortrait) return { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+        return { x: rect.top + rect.height/2, y: canvas.height - (rect.left + rect.width/2) };
     }
 
-    /* 頁面載入時立即套用 */
-    applyOrient();
-    /* 同步按鈕狀態 */
-    window.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.orient-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.mode === myOrientPrefer);
-        });
-        const hint = document.getElementById('orient-hint');
-        if (myOrientPrefer === 'portrait') {
-            hint.innerHTML = '<span>直屏</span>：手機直拿，畫面自動旋轉';
-        } else {
-            hint.innerHTML = '<span>橫屏</span>：手機打橫，畫面正常顯示';
+    const gate  = tr(gateRect);
+    const deck  = tr(deckRect);
+    const lpost = tr(c1Rect);
+    const rpost = tr(c2Rect);
+    const isRed = cardData.suit === '♥' || cardData.suit === '♦';
+    const cardW = 60, cardH = 86;
+
+    let endX, endY;
+    if      (resultType === 'win')   { endX = gate.x;   endY = gate.y; }
+    else if (resultType === 'crash') { const p = Math.random() > 0.5 ? lpost : rpost; endX = p.x; endY = p.y; }
+    else    { endX = Math.random() > 0.5 ? -cardW : canvas.width + cardW; endY = gate.y - 40; }
+
+    const cpX = (deck.x + endX) / 2 + (Math.random() - 0.5) * 80;
+    const cpY = Math.min(deck.y, endY) - 130;
+    let t = 0, rotation = 0;
+
+    function drawCard(x, y, rot, alpha) {
+        ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.rotate(rot);
+        ctx.fillStyle = '#fff'; ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+        roundRect(ctx, -cardW/2, -cardH/2, cardW, cardH, 8); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = isRed ? '#e74c3c' : '#000';
+        ctx.font = `bold 20px 'Segoe UI'`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(cardData.suit, 0, -10); ctx.fillText(cardData.label.toString(), 0, 14);
+        ctx.restore();
+    }
+    function roundRect(c, x, y, w, h, r) {
+        c.beginPath();
+        c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+        c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+        c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+        c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
+    }
+
+    let particles = [];
+    function spawnCrash(x, y) {
+        for (let i = 0; i < 20; i++) {
+            const a = Math.random()*Math.PI*2, s = 3+Math.random()*6;
+            particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:Math.random()>0.5?'#f39c12':'#e74c3c'});
         }
+    }
+    let phase = 'fly', it = 0;
+    function frame() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        if (phase === 'fly') {
+            t++;
+            const p = t/50, e = p<0.5?2*p*p:-1+(4-2*p)*p;
+            const bx = (1-e)*(1-e)*deck.x + 2*(1-e)*e*cpX + e*e*endX;
+            const by = (1-e)*(1-e)*deck.y + 2*(1-e)*e*cpY + e*e*endY;
+            rotation += 0.15;
+            drawCard(bx, by, rotation, Math.min(1, p*3));
+            if (t >= 50) { phase = 'impact'; if (resultType === 'crash') spawnCrash(endX, endY); }
+            requestAnimationFrame(frame);
+        } else if (phase === 'impact') {
+            it++;
+            if (resultType === 'win') {
+                const sc = 1-it/25, a = 1-it/20;
+                if (a > 0) { ctx.save(); ctx.strokeStyle=`rgba(46,204,113,${a})`; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(endX,endY,50+it*3,0,Math.PI*2); ctx.stroke(); ctx.restore(); drawCard(endX,endY,0,a*sc); }
+            } else if (resultType === 'crash') {
+                particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.3;p.life-=0.04;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();ctx.restore();});
+                particles = particles.filter(p => p.life > 0);
+                drawCard(endX+(Math.random()-0.5)*(10-it*0.5), endY, Math.random()*0.3, Math.max(0,1-it/20));
+            } else {
+                const a = Math.max(0,1-it/15), fly = it*8, dir = endX < canvas.width/2 ? -1 : 1;
+                drawCard(endX+dir*fly, endY-fly*0.3, rotation+it*0.2, a);
+            }
+            if (it >= 25 || (resultType === 'lose' && it >= 18)) { ctx.clearRect(0,0,canvas.width,canvas.height); if (onDone) onDone(); return; }
+            requestAnimationFrame(frame);
+        }
+    }
+    requestAnimationFrame(frame);
+}
+
+/* ── 結果橫幅 ── */
+function showResultBanner(emoji, text, amount, type) {
+    const b = document.getElementById('result-banner');
+    document.getElementById('rb-emoji').innerText = emoji;
+    document.getElementById('rb-text').innerText  = text;
+    const ae = document.getElementById('rb-amount');
+    ae.innerText   = (amount >= 0 ? '+' : '') + '$' + amount;
+    ae.className   = 'rb-amount ' + (amount >= 0 ? 'positive' : 'negative');
+    b.classList.remove('show'); b.style.display = 'block';
+    requestAnimationFrame(() => requestAnimationFrame(() => b.classList.add('show')));
+    setTimeout(() => { b.classList.remove('show'); setTimeout(() => b.style.display = 'none', 400); }, 2800);
+}
+
+/* ── 彩紙 ── */
+function spawnConfetti(count) {
+    const cols = ['#f1c40f','#2ecc71','#3498db','#e74c3c','#9b59b6','#fff'];
+    for (let i = 0; i < count; i++) {
+        const el = document.createElement('div'); el.className = 'confetti-piece';
+        el.style.left = Math.random()*100+'vw';
+        el.style.background = cols[Math.floor(Math.random()*cols.length)];
+        el.style.animationDuration = (1.5+Math.random()*1.5)+'s';
+        el.style.animationDelay = (Math.random()*0.5)+'s';
+        document.body.appendChild(el); setTimeout(() => el.remove(), 3500);
+    }
+}
+
+/* ── Toasts ── */
+let myTurnTimer = null;
+function showMyTurnToast() {
+    const t = document.getElementById('my-turn-toast'); t.style.display = 'block';
+    if ('vibrate' in navigator) navigator.vibrate([150,50,150]);
+    clearTimeout(myTurnTimer); myTurnTimer = setTimeout(() => t.style.display = 'none', 3000);
+}
+let refillTimer = null;
+function showRefillToast(fee, count) {
+    const t = document.getElementById('refill-toast');
+    t.innerText = `💰 池金不足,每人補底 $${fee}(共補 $${fee*count})`;
+    t.style.display = 'block'; clearTimeout(refillTimer); refillTimer = setTimeout(() => t.style.display = 'none', 3500);
+}
+
+/* (2) 重連提示 */
+function showReconnectToast(msg, duration) {
+    const t = document.getElementById('reconnect-toast');
+    t.innerHTML = msg; t.style.display = 'block';
+    if (duration) setTimeout(() => t.style.display = 'none', duration);
+}
+function hideReconnectToast() { document.getElementById('reconnect-toast').style.display = 'none'; }
+
+/* ── 座位渲染 ── */
+function renderSeats() {
+    const layer = document.getElementById('seats-layer');
+    if (!layer || !localData.players) return;
+    layer.innerHTML = '';
+    const pKeys = Object.keys(localData.players);
+    const n = pKeys.length;
+    if (n === 0) return;
+    const myIdx = pKeys.indexOf(myId);
+    const rx = 42, ry = 38;
+
+    pKeys.forEach((id, i) => {
+        const p       = localData.players[id];
+        const isMe    = (id === myId);
+        const isHost  = (i === 0);
+        const isActive= (id === localData.currentPlayerKey);
+        /* (2) 被踢緩衝期 */
+        const isKicked= !!p.kickedAt;
+        const relIdx  = (i - myIdx + n) % n;
+        const angleRad= (90 + relIdx * (360/n)) * Math.PI / 180;
+        const cx = 50 + rx * Math.cos(angleRad);
+        const cy = 50 + ry * Math.sin(angleRad);
+        const crown = isHost ? ' 👑' : '';
+
+        let tmr = '';
+        if (isActive && localData.lastActionTime && !isKicked) {
+            const sec = Math.max(0, 60 - Math.floor((getServerNow()-localData.lastActionTime)/1000));
+            tmr = `<div class="seat-tmr">⏱${sec}s</div>`;
+        }
+        if (isKicked) {
+            const remain = Math.max(0, Math.ceil((p.kickedAt + KICK_GRACE - getServerNow()) / 1000));
+            tmr = `<div class="seat-tmr">🚫 ${remain}s後移除</div>`;
+        }
+
+        const boxCls = ['seat-box', isActive&&!isKicked?'active':'', isMe?'is-me':'', isKicked?'kicked':''].filter(Boolean).join(' ');
+        const node = document.createElement('div');
+        node.className = 'seat' + (isMe ? ' is-me' : '');
+        node.style.left = cx+'%'; node.style.top = cy+'%';
+        /* (2) 被踢期間不顯示踢除按鈕（避免重複踢） */
+        const kickBtn = (!isKicked) ? `<button class="seat-kick" onclick="kickPlayer('${id}')">✕</button>` : '';
+        node.innerHTML = `${kickBtn}<div class="${boxCls}"><div class="seat-name">${p.name}${crown}</div><div class="seat-bal">$${p.balance}</div>${tmr}</div>`;
+        layer.appendChild(node);
     });
 
-    /* ── Firebase ── */
-    const firebaseConfig = {
-        apiKey: "AIzaSyDzd-2ZUgrDM8K_85_qSOgpkWuWNzBUBL8",
-        authDomain: "dargongatepoker.firebaseapp.com",
-        databaseURL: "https://dargongatepoker-default-rtdb.firebaseio.com",
-        projectId: "dargongatepoker",
-        storageBucket: "dargongatepoker.firebasestorage.app",
-        messagingSenderId: "204663560828",
-        appId: "1:204663560828:web:9ede7b6190babde73f07f9"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const gameRef = db.ref('dragonGate/room1');
-
-    /* ── 全域狀態 ── */
-    let myId = "";
-    let localData = {};
-    let lastEffectId = "INITIAL";
-    let lastShotId   = "INITIAL";
-    let lastEmojiTime = 0;
-    let serverOffset = 0;
-    let wasMyturn = false;
-    let emojiBarOpen = false;
-    const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
-
-    db.ref(".info/serverTimeOffset").on("value", s => serverOffset = s.val());
-    function getServerNow() { return Date.now() + serverOffset; }
-
-    /* ── 音效 ── */
-    function playSfx(id) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.currentTime = 0;
-        el.play().catch(() => {});
+    const oval = document.getElementById('oval');
+    if (oval) {
+        if (localData.currentPlayerKey === myId) oval.classList.add('my-turn');
+        else oval.classList.remove('my-turn');
     }
+}
 
-    /* ── Emoji 摺疊 ── */
-    function toggleEmojiBar() {
-        emojiBarOpen = !emojiBarOpen;
-        const bar = document.getElementById('emoji-bar');
-        const btn = document.getElementById('emoji-toggle');
-        if (emojiBarOpen) {
-            bar.style.display = 'flex';
-            btn.classList.add('open');
-            btn.innerText = '✕';
-        } else {
-            bar.style.display = 'none';
-            btn.classList.remove('open');
-            btn.innerText = '😄';
-        }
-    }
+/* ════════════════════════════════════════
+   (2) 加入房間 — localStorage 重連邏輯
+════════════════════════════════════════ */
+function joinRoom() {
+    const name = document.getElementById('my-name').value.trim();
+    if (!name) return alert("請輸入暱稱");
 
-    /* ════════════════════════════════════════
-       ★ 飛牌動畫（依各人方向偏好判斷座標轉換）
-    ════════════════════════════════════════ */
-    function animateShotCard(cardData, resultType, onDone) {
-        const canvas = document.getElementById('shot-canvas');
-        const ctx = canvas.getContext('2d');
+    const savedId   = localStorage.getItem('dgp_myId');
+    const savedName = localStorage.getItem('dgp_myName');
+    const savedTime = parseInt(localStorage.getItem('dgp_savedAt') || '0');
+    const now       = Date.now();
 
-        /*
-          判斷是否需要旋轉座標：
-          - prefer-portrait  且目前是 portrait  → 需要旋轉（畫面已被 CSS 旋轉 90 度）
-          - 其他情況 → 不旋轉
-        */
-        const isPortrait = window.innerHeight > window.innerWidth;
-        const needRotate = (myOrientPrefer === 'portrait') && isPortrait;
+    /* 嘗試重連：同名、有儲存id、在 RECONNECT_WINDOW 內 */
+    const canReconnect = savedId && savedName === name && (now - savedTime < RECONNECT_WINDOW);
 
-        if (needRotate) {
-            canvas.width  = window.innerHeight;
-            canvas.height = window.innerWidth;
-        } else {
-            canvas.width  = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-
-        const gateEl = document.getElementById('gate-frame');
-        const gateRect = gateEl.getBoundingClientRect();
-        const deckEl = document.getElementById('deck-stack');
-        const deckRect = deckEl.getBoundingClientRect();
-        const c1Rect = document.getElementById('c1').getBoundingClientRect();
-        const c2Rect = document.getElementById('c2').getBoundingClientRect();
-
-        function tr(rect) {
-            if (!needRotate) return { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
-            return {
-                x: rect.top  + rect.height/2,
-                y: canvas.height - (rect.left + rect.width/2)
-            };
-        }
-
-        const gate   = tr(gateRect);
-        const deck   = tr(deckRect);
-        const lpost  = tr(c1Rect);
-        const rpost  = tr(c2Rect);
-
-        const isRed = cardData.suit === '♥' || cardData.suit === '♦';
-        const cardW = 60, cardH = 86;
-
-        let startX = deck.x, startY = deck.y;
-        let endX, endY;
-        if (resultType === 'win') {
-            endX = gate.x; endY = gate.y;
-        } else if (resultType === 'crash') {
-            const post = Math.random() > 0.5 ? lpost : rpost;
-            endX = post.x; endY = post.y;
-        } else {
-            endX = Math.random() > 0.5 ? -cardW : canvas.width + cardW;
-            endY = gate.y - 40;
-        }
-
-        const cpX = (startX + endX) / 2 + (Math.random() - 0.5) * 80;
-        const cpY = Math.min(startY, endY) - 130;
-        let t = 0, rotation = 0;
-        const duration = 50;
-
-        function drawCard(x, y, rot, alpha) {
-            ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.rotate(rot);
-            ctx.fillStyle = '#fff'; ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
-            roundRect(ctx, -cardW/2, -cardH/2, cardW, cardH, 8);
-            ctx.fill(); ctx.stroke();
-            ctx.fillStyle = isRed ? '#e74c3c' : '#000';
-            ctx.font = `bold 20px 'Segoe UI'`;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(cardData.suit, 0, -10);
-            ctx.fillText(cardData.label.toString(), 0, 14);
-            ctx.restore();
-        }
-        function roundRect(c, x, y, w, h, r) {
-            c.beginPath();
-            c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
-            c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-            c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
-            c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
-        }
-
-        let particles = [];
-        function spawnCrash(x, y) {
-            for (let i=0; i<20; i++) {
-                const a=Math.random()*Math.PI*2, s=3+Math.random()*6;
-                particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:Math.random()>0.5?'#f39c12':'#e74c3c'});
-            }
-        }
-        let phase='fly', it=0;
-        function frame() {
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            if (phase==='fly') {
-                t++;
-                const p=t/duration, e=p<0.5?2*p*p:-1+(4-2*p)*p;
-                const bx=(1-e)*(1-e)*startX+2*(1-e)*e*cpX+e*e*endX;
-                const by=(1-e)*(1-e)*startY+2*(1-e)*e*cpY+e*e*endY;
-                rotation+=0.15;
-                drawCard(bx,by,rotation,Math.min(1,p*3));
-                if(t>=duration){phase='impact';if(resultType==='crash')spawnCrash(endX,endY);}
-                requestAnimationFrame(frame);
-            } else if(phase==='impact'){
-                it++;
-                if(resultType==='win'){
-                    const sc=1-it/25,a=1-it/20;
-                    if(a>0){ctx.save();ctx.strokeStyle=`rgba(46,204,113,${a})`;ctx.lineWidth=4;ctx.beginPath();ctx.arc(endX,endY,50+it*3,0,Math.PI*2);ctx.stroke();ctx.restore();drawCard(endX,endY,0,a*sc);}
-                } else if(resultType==='crash'){
-                    particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.3;p.life-=0.04;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();ctx.restore();});
-                    particles=particles.filter(p=>p.life>0);
-                    drawCard(endX+(Math.random()-0.5)*(10-it*0.5),endY,Math.random()*0.3,Math.max(0,1-it/20));
-                } else {
-                    const a=Math.max(0,1-it/15),fly=it*8,dir=endX<canvas.width/2?-1:1;
-                    drawCard(endX+dir*fly,endY-fly*0.3,rotation+it*0.2,a);
-                }
-                if(it>=25||(resultType==='lose'&&it>=18)){ctx.clearRect(0,0,canvas.width,canvas.height);if(onDone)onDone();return;}
-                requestAnimationFrame(frame);
-            }
-        }
-        requestAnimationFrame(frame);
-    }
-
-    /* ── 結果橫幅 ── */
-    function showResultBanner(emoji, text, amount, type) {
-        const b = document.getElementById('result-banner');
-        document.getElementById('rb-emoji').innerText = emoji;
-        document.getElementById('rb-text').innerText = text;
-        const ae = document.getElementById('rb-amount');
-        ae.innerText = (amount>=0?'+':'')+'$'+amount;
-        ae.className = 'rb-amount '+(amount>=0?'positive':'negative');
-        b.classList.remove('show'); b.style.display='block';
-        requestAnimationFrame(()=>requestAnimationFrame(()=>b.classList.add('show')));
-        setTimeout(()=>{b.classList.remove('show');setTimeout(()=>b.style.display='none',400);},2800);
-    }
-
-    /* ── 彩紙 ── */
-    function spawnConfetti(count) {
-        const cols=['#f1c40f','#2ecc71','#3498db','#e74c3c','#9b59b6','#fff'];
-        for(let i=0;i<count;i++){
-            const el=document.createElement('div');el.className='confetti-piece';
-            el.style.left=Math.random()*100+'vw';el.style.background=cols[Math.floor(Math.random()*cols.length)];
-            el.style.animationDuration=(1.5+Math.random()*1.5)+'s';el.style.animationDelay=(Math.random()*0.5)+'s';
-            document.body.appendChild(el);setTimeout(()=>el.remove(),3500);
-        }
-    }
-
-    /* ── Toasts ── */
-    let myTurnTimer=null;
-    function showMyTurnToast(){
-        const t=document.getElementById('my-turn-toast');t.style.display='block';
-        if('vibrate'in navigator)navigator.vibrate([150,50,150]);
-        clearTimeout(myTurnTimer);myTurnTimer=setTimeout(()=>t.style.display='none',3000);
-    }
-    let refillTimer=null;
-    function showRefillToast(fee,count){
-        const t=document.getElementById('refill-toast');
-        t.innerText=`💰 池金不足,每人補底 $${fee}(共補 $${fee*count})`;
-        t.style.display='block';clearTimeout(refillTimer);refillTimer=setTimeout(()=>t.style.display='none',3500);
-    }
-
-    /* ── 座位渲染 ── */
-    function renderSeats() {
-        const layer = document.getElementById('seats-layer');
-        if (!layer || !localData.players) return;
-        layer.innerHTML = '';
-        const pKeys = Object.keys(localData.players);
-        const n = pKeys.length;
-        if (n === 0) return;
-        const myIdx = pKeys.indexOf(myId);
-        const rx = 42, ry = 38;
-
-        pKeys.forEach((id, i) => {
-            const p = localData.players[id];
-            const isMe     = (id === myId);
-            const isHost   = (i === 0);
-            const isActive = (id === localData.currentPlayerKey);
-            const relIdx   = (i - myIdx + n) % n;
-            const angleRad = (90 + relIdx * (360/n)) * Math.PI / 180;
-            const cx = 50 + rx * Math.cos(angleRad);
-            const cy = 50 + ry * Math.sin(angleRad);
-            const crown = isHost ? ' 👑' : '';
-            let tmr = '';
-            if (isActive && localData.lastActionTime) {
-                const sec = Math.max(0, 60 - Math.floor((getServerNow()-localData.lastActionTime)/1000));
-                tmr = `<div class="seat-tmr">⏱${sec}s</div>`;
-            }
-            const boxCls = ['seat-box',isActive?'active':'',isMe?'is-me':''].filter(Boolean).join(' ');
-            const node = document.createElement('div');
-            node.className = 'seat'+(isMe?' is-me':'');
-            node.style.left = cx+'%'; node.style.top = cy+'%';
-            node.innerHTML = `<button class="seat-kick" onclick="kickPlayer('${id}')">✕</button><div class="${boxCls}"><div class="seat-name">${p.name}${crown}</div><div class="seat-bal">$${p.balance}</div>${tmr}</div>`;
-            layer.appendChild(node);
-        });
-
-        const oval = document.getElementById('oval');
-        if (oval) {
-            if (localData.currentPlayerKey===myId) oval.classList.add('my-turn');
-            else oval.classList.remove('my-turn');
-        }
-    }
-
-    /* ── 點擊牌堆 ── */
-    function onDeckClick() {
-        if (!localData.gameStarted) return;
-        if (localData.currentPlayerKey !== myId) return;
-        if (localData.gameState === 'waiting_deal') {
-            drawGoalPost();
-        } else if (localData.gameState === 'waiting_shoot') {
-            const bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
-            const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
-            if (bet < 1 || bet > localData.pool) {
-                const h = document.getElementById('deck-hint');
-                h.innerText = '⚠️ 請先下注!'; h.classList.add('show');
-                setTimeout(()=>{h.innerText='下注後點擊射門';},1500); return;
-            }
-            if (isSame) {
-                const h = document.getElementById('deck-hint');
-                h.innerText = '⚠️ 請猜大或猜小'; h.classList.add('show');
-                setTimeout(()=>{h.innerText='猜大/猜小';},1500);
-            } else {
-                handleAction('shoot');
-            }
-        }
-    }
-
-    /* ── 心跳 ── */
-    setInterval(()=>{
-        if(myId&&localData.players&&localData.players[myId])
-            gameRef.child('players/'+myId).update({lastActive:getServerNow()});
-    },5000);
-
-    setInterval(()=>{
-        if(!localData.players) return;
-        const now=getServerNow(),players=localData.players,pKeys=Object.keys(players);
-        if(pKeys[0]===myId){
-            pKeys.forEach(id=>{if(id!==myId&&(!players[id].lastActive||now-players[id].lastActive>60000))gameRef.child('players/'+id).remove();});
-        }
-        if(pKeys.length===0&&localData.gameStarted){gameRef.update({gameStarted:false,c1:null,c2:null,c3:null});return;}
-        if(!localData.gameStarted)return;
-        const cpKey=localData.currentPlayerKey;
-        if(cpKey&&!players[cpKey]){gameRef.update({gameState:'waiting_deal',currentPlayerKey:pKeys[0],lastActionTime:firebase.database.ServerValue.TIMESTAMP});return;}
-        if(pKeys[0]===myId&&localData.lastActionTime){
-            const diff=(now-localData.lastActionTime)/1000;
-            if(diff>60.5){
-                gameRef.child('players/'+cpKey).remove().then(()=>{
-                    const nk=Object.keys(localData.players).filter(k=>k!==cpKey);
-                    gameRef.update({gameState:'waiting_deal',currentPlayerKey:nk[0]||null,statusMsg:"玩家超時踢除",lastActionTime:firebase.database.ServerValue.TIMESTAMP});
-                });
-            }
-        }
-        renderSeats();
-    },1000);
-
-    /* ── 進場 ── */
-    function togglePlayers(){}
-
-    function joinRoom() {
-        const name = document.getElementById('my-name').value.trim();
-        if (!name) return alert("請輸入暱稱");
-        const now = getServerNow();
-        gameRef.once('value', snap => {
-            const data = snap.val() || {};
-            const players = data.players || {};
-            Object.keys(players).forEach(id => {
-                if (!players[id].lastActive || now - players[id].lastActive > 60000) {
-                    delete players[id]; gameRef.child('players/'+id).remove();
-                }
-            });
-            const pKeys = Object.keys(players);
-            if (pKeys.length === 0) gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null});
-            const newRef = gameRef.child('players').push();
-            myId = newRef.key;
-            gameRef.child('players/'+myId).update({name,balance:0,lastActive:now});
-            if(data.allInTrigger) lastEffectId = data.allInTrigger;
-            if(data.lastEmoji)    lastEmojiTime = data.lastEmoji.time;
-            if(data.lastShot)     lastShotId    = data.lastShot.id;
-            startListening();
-            document.getElementById('login-part').style.display = 'none';
-        });
-    }
-
-    function startListening() {
-        gameRef.on('value', snap => {
-            localData = snap.val() || {};
-            if (!localData.players || !localData.players[myId]) return;
-
-            const pKeys  = Object.keys(localData.players);
-            const isHost = (pKeys[0] === myId);
-            document.body.className = isHost ? "is-host" : "";
-            /* 重新套用方向（body class 被覆寫了，要補回來） */
-            applyOrient();
-
-            if (localData.lastEmoji && localData.lastEmoji.time > lastEmojiTime) {
-                showEmojiBroadcast(localData.lastEmoji.name, localData.lastEmoji.icon);
-                lastEmojiTime = localData.lastEmoji.time;
-            }
-
-            /* 廣播飛牌 */
-            if (localData.lastShot && localData.lastShot.id !== lastShotId) {
-                const shot = localData.lastShot;
-                lastShotId = shot.id;
-                if (shot.shooterId !== myId) {
-                    updateCard('c1', localData.c1);
-                    updateCard('c2', localData.c2);
-                    document.getElementById('gate-inner').style.display = 'none';
-                    animateShotCard(shot.card, shot.resultType, () => {
-                        updateGateCard(localData.c3);
-                        const sfxMap={win:'sfx-win',crash:'sfx-crash',lose:'sfx-lose'};
-                        playSfx(sfxMap[shot.resultType]||'sfx-lose');
-                        if(shot.resultType==='win')spawnConfetti(40);
-                        showResultBanner(shot.emoji,shot.text,shot.delta,shot.resultType);
+    if (canReconnect) {
+        /* 先確認 Firebase 上那個 slot 是否還存在 */
+        gameRef.child('players/' + savedId).once('value', snap => {
+            const existing = snap.val();
+            if (existing && !existing.kickedAt) {
+                /* 繼承原本的 id，更新心跳 */
+                myId = savedId;
+                saveMyId(name);
+                gameRef.child('players/' + myId).update({ lastActive: firebase.database.ServerValue.TIMESTAMP });
+                showReconnectToast('🔄 重連成功，繼承原本座位', 2000);
+                startListening();
+                document.getElementById('login-part').style.display = 'none';
+            } else if (existing && existing.kickedAt) {
+                /* 被踢緩衝期內，等待刪除後重新加入 */
+                showReconnectToast('⏳ 正在等待座位釋放...');
+                const checkInterval = setInterval(() => {
+                    gameRef.child('players/' + savedId).once('value', s2 => {
+                        if (!s2.val()) {
+                            clearInterval(checkInterval);
+                            hideReconnectToast();
+                            createNewPlayer(name);
+                        }
                     });
-                }
-            }
-
-            if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
-                const v = document.getElementById('video-box');
-                v.innerHTML=`<video width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
-                document.getElementById('all-in-overlay').style.display='flex';
-                playSfx('sfx-allin');
-                setTimeout(()=>document.getElementById('all-in-overlay').style.display='none',2500);
-                lastEffectId = localData.allInTrigger;
-            }
-
-            if (localData.gameStarted) {
-                document.getElementById('setup-screen').style.display = 'none';
-                document.getElementById('game-screen').style.display = 'block';
-                document.getElementById('emoji-toggle').style.display = 'flex';
-                document.getElementById('emoji-bar').style.display = 'none';
-                emojiBarOpen = false;
-                document.getElementById('emoji-toggle').classList.remove('open');
-                document.getElementById('emoji-toggle').innerText = '😄';
-                document.getElementById('tools').style.display = 'flex';
-                renderUI(isHost);
-                const isTurnNow = (localData.currentPlayerKey === myId);
-                if (isTurnNow && !wasMyturn) showMyTurnToast();
-                wasMyturn = isTurnNow;
+                }, 1000);
             } else {
-                document.getElementById('setup-screen').style.display = 'flex';
-                document.getElementById('game-screen').style.display = 'none';
-                document.getElementById('emoji-toggle').style.display = 'none';
-                document.getElementById('emoji-bar').style.display = 'none';
-                document.getElementById('tools').style.display = 'none';
-                document.getElementById('host-part').style.display = isHost ? 'block' : 'none';
-                /* 返回登入畫面時同步選擇器狀態 */
-                document.querySelectorAll('.orient-btn').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.mode === myOrientPrefer);
+                /* slot 已不存在，重新建立 */
+                createNewPlayer(name);
+            }
+        });
+    } else {
+        createNewPlayer(name);
+    }
+}
+
+function createNewPlayer(name) {
+    gameRef.once('value', snap => {
+        const data    = snap.val() || {};
+        const players = data.players || {};
+        const now     = getServerNow();
+
+        /* 清除已超時又沒有 kickedAt 的幽靈玩家 */
+        Object.keys(players).forEach(id => {
+            const p = players[id];
+            if (!p.kickedAt && (!p.lastActive || now - p.lastActive > 70000)) {
+                gameRef.child('players/' + id).remove();
+            }
+        });
+
+        const pKeys = Object.keys(players).filter(id => !players[id].kickedAt || (now - players[id].kickedAt < KICK_GRACE));
+        if (pKeys.length === 0) gameRef.update({ gameStarted: false, c1: null, c2: null, c3: null, currentPlayerKey: null });
+
+        const newRef = gameRef.child('players').push();
+        myId = newRef.key;
+        saveMyId(name);
+        gameRef.child('players/' + myId).set({ name, balance: 0, lastActive: firebase.database.ServerValue.TIMESTAMP });
+
+        if (data.allInTrigger) lastEffectId = data.allInTrigger;
+        if (data.lastEmoji)    lastEmojiTime = data.lastEmoji.time;
+        if (data.lastShot)     lastShotId    = data.lastShot.id;
+
+        startListening();
+        document.getElementById('login-part').style.display = 'none';
+    });
+}
+
+function saveMyId(name) {
+    localStorage.setItem('dgp_myId',    myId);
+    localStorage.setItem('dgp_myName',  name);
+    localStorage.setItem('dgp_savedAt', Date.now().toString());
+}
+
+/* ════════════════════════════════════════
+   startListening
+════════════════════════════════════════ */
+function startListening() {
+    gameRef.on('value', snap => {
+        localData = snap.val() || {};
+        if (!localData.players || !localData.players[myId]) {
+            /* 自己已被刪除（可能是超時刪除或房主刪除）→ 回到登入畫面 */
+            document.getElementById('setup-screen').style.display = 'flex';
+            document.getElementById('game-screen').style.display  = 'none';
+            document.getElementById('login-part').style.display   = 'block';
+            document.getElementById('host-part').style.display    = 'none';
+            document.getElementById('emoji-toggle').style.display = 'none';
+            document.getElementById('emoji-bar').style.display    = 'none';
+            document.getElementById('tools').style.display        = 'none';
+            /* 清掉 localStorage，避免下次誤判為重連 */
+            localStorage.removeItem('dgp_myId');
+            localStorage.removeItem('dgp_myName');
+            localStorage.removeItem('dgp_savedAt');
+            return;
+        }
+
+        const pKeys  = Object.keys(localData.players);
+        const isHost = (pKeys[0] === myId);
+        document.body.className = isHost ? "is-host" : "";
+
+        if (localData.lastEmoji && localData.lastEmoji.time > lastEmojiTime) {
+            showEmojiBroadcast(localData.lastEmoji.name, localData.lastEmoji.icon);
+            lastEmojiTime = localData.lastEmoji.time;
+        }
+
+        if (localData.lastShot && localData.lastShot.id !== lastShotId) {
+            const shot = localData.lastShot;
+            lastShotId = shot.id;
+            if (shot.shooterId !== myId) {
+                updateCard('c1', localData.c1);
+                updateCard('c2', localData.c2);
+                document.getElementById('gate-inner').style.display = 'none';
+                animateShotCard(shot.card, shot.resultType, () => {
+                    updateGateCard(localData.c3);
+                    const sfxMap = { win:'sfx-win', crash:'sfx-crash', lose:'sfx-lose' };
+                    playSfx(sfxMap[shot.resultType] || 'sfx-lose');
+                    if (shot.resultType === 'win') spawnConfetti(40);
+                    showResultBanner(shot.emoji, shot.text, shot.delta, shot.resultType);
                 });
-                wasMyturn = false;
             }
-            const hrb = document.getElementById('host-reset-btn');
-            if (hrb) hrb.style.display = isHost ? 'block' : 'none';
-            renderSeats();
-        });
-    }
+        }
 
-    /* ── Emoji ── */
-    function sendEmoji(icon) {
-        gameRef.update({lastEmoji:{name:localData.players[myId].name,icon,time:firebase.database.ServerValue.TIMESTAMP}});
-        if (emojiBarOpen) toggleEmojiBar();
-    }
-    function showEmojiBroadcast(name, icon) {
-        const a=document.getElementById('emoji-broadcast-area');
-        const d=document.createElement('div');d.className='broadcast-item';
-        d.innerText=`${name}: ${icon}`;a.appendChild(d);setTimeout(()=>d.remove(),2500);
-    }
+        if (localData.allInTrigger && localData.allInTrigger !== lastEffectId) {
+            const v = document.getElementById('video-box');
+            v.innerHTML = `<video width="315" height="560" autoplay playsinline><source src="video/allin.mp4" type="video/mp4"></video>`;
+            document.getElementById('all-in-overlay').style.display = 'flex';
+            playSfx('sfx-allin');
+            setTimeout(() => document.getElementById('all-in-overlay').style.display = 'none', 2500);
+            lastEffectId = localData.allInTrigger;
+        }
 
-    /* ── renderPlayers ── */
-    function renderPlayers() {}
-
-    /* ── hostStartGame ── */
-    function hostStartGame() {
-        const fee   = parseInt(document.getElementById('entry-fee').value)||100;
-        const start = parseInt(document.getElementById('start-balance').value)||1000;
-        const decks = parseInt(document.getElementById('deck-count').value)||2;
-        const refill= document.getElementById('auto-refill').checked;
-        let players=localData.players, pool=0;
-        Object.keys(players).forEach(id=>{players[id].balance=start-fee;pool+=fee;});
-        gameRef.update({
-            gameStarted:true,deck:generateDecks(decks),pool,entryFee:fee,
-            foldPenalty:parseInt(document.getElementById('fold-penalty').value)||20,
-            autoRefill:refill,deckCount:decks,gameState:'waiting_deal',
-            currentPlayerKey:Object.keys(players)[0],players,
-            lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:"新局開始"
-        });
-    }
-
-    function drawGoalPost() {
-        playSfx('sfx-deal');
-        let deck=localData.deck||[];
-        if(deck.length<3)deck=generateDecks(localData.deckCount||2);
-        const c1=deck.pop(),c2=deck.pop();
-        gameRef.update({deck,c1,c2,c3:null,gameState:'waiting_shoot',lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:"請下注後抽門牌"});
-    }
-
-    function handleAction(type) {
-        let bet=Math.abs(parseInt(document.getElementById('bet-amount').value))||0;
-        if(type!=='fold'&&(bet<1||bet>localData.pool))return alert("請下注");
-        let p=localData.players[myId],nBal=p.balance,nPool=localData.pool;
-        let msg="",c3=null,deck=localData.deck||[];
-        let resultType='neutral',deltaAmount=0;
-
-        if(type==='fold'){
-            nBal-=localData.foldPenalty;nPool+=localData.foldPenalty;
-            msg=`${p.name} 棄牌`;resultType='fold';deltaAmount=-localData.foldPenalty;
+        if (localData.gameStarted) {
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display  = 'block';
+            document.getElementById('emoji-toggle').style.display = 'flex';
+            document.getElementById('emoji-bar').style.display    = 'none';
+            emojiBarOpen = false;
+            document.getElementById('emoji-toggle').classList.remove('open');
+            document.getElementById('emoji-toggle').innerText = '😄';
+            document.getElementById('tools').style.display = 'flex';
+            renderUI(isHost);
+            const isTurnNow = (localData.currentPlayerKey === myId);
+            if (isTurnNow && !wasMyturn) showMyTurnToast();
+            wasMyturn = isTurnNow;
         } else {
-            if(deck.length<1)deck=generateDecks(localData.deckCount||2);
-            c3=deck.pop();
-            const min=Math.min(localData.c1.val,localData.c2.val);
-            const max=Math.max(localData.c1.val,localData.c2.val);
-            if(localData.c1.val===localData.c2.val){
-                if(c3.val===localData.c1.val){nBal-=bet*3;nPool+=bet*3;msg=`撞柱(-$${bet*3})`;resultType='crash';deltaAmount=-(bet*3);}
-                else if((type==='up'&&c3.val>localData.c1.val)||(type==='down'&&c3.val<localData.c1.val)){nBal+=bet;nPool-=bet;msg=`猜對(+$${bet})`;resultType='win';deltaAmount=bet;}
-                else{nBal-=bet;nPool+=bet;msg=`猜錯(-$${bet})`;resultType='lose';deltaAmount=-bet;}
-            } else {
-                if(c3.val>min&&c3.val<max){nBal+=bet;nPool-=bet;msg=`射進(+$${bet})`;resultType='win';deltaAmount=bet;}
-                else if(c3.val===min||c3.val===max){nBal-=bet*2;nPool+=bet*2;msg=`撞柱(-$${bet*2})`;resultType='crash';deltaAmount=-(bet*2);}
-                else{nBal-=bet;nPool+=bet;msg=`沒進(-$${bet})`;resultType='lose';deltaAmount=-bet;}
+            document.getElementById('setup-screen').style.display = 'flex';
+            document.getElementById('game-screen').style.display  = 'none';
+            document.getElementById('emoji-toggle').style.display = 'none';
+            document.getElementById('emoji-bar').style.display    = 'none';
+            document.getElementById('tools').style.display        = 'none';
+            document.getElementById('host-part').style.display    = isHost ? 'block' : 'none';
+            wasMyturn = false;
+        }
+
+        const hrb = document.getElementById('host-reset-btn');
+        if (hrb) hrb.style.display = isHost ? 'block' : 'none';
+        renderSeats();
+    });
+}
+
+/* ════════════════════════════════════════
+   心跳 & 自動清理
+════════════════════════════════════════ */
+setInterval(() => {
+    if (myId && localData.players && localData.players[myId])
+        gameRef.child('players/' + myId).update({ lastActive: getServerNow() });
+}, 5000);
+
+setInterval(() => {
+    if (!localData.players) return;
+    const now     = getServerNow();
+    const players = localData.players;
+    const pKeys   = Object.keys(players);
+
+    if (pKeys[0] === myId) {
+        pKeys.forEach(id => {
+            const p = players[id];
+            /* (2) 已標記 kickedAt 且超過 KICK_GRACE → 真正刪除 */
+            if (p.kickedAt && now - p.kickedAt >= KICK_GRACE) {
+                gameRef.child('players/' + id).remove();
+                return;
             }
+            /* 未標記但心跳超時超過 70 秒 → 標記 kickedAt（給 10 秒緩衝） */
+            if (!p.kickedAt && id !== myId && (!p.lastActive || now - p.lastActive > 70000)) {
+                gameRef.child('players/' + id).update({ kickedAt: getServerNow() });
+            }
+        });
+    }
+
+    /* 換手邏輯：currentPlayer 已被標記 kickedAt → 直接跳過 */
+    if (!localData.gameStarted) return;
+    const cpKey = localData.currentPlayerKey;
+    if (cpKey && players[cpKey] && players[cpKey].kickedAt) {
+        if (pKeys[0] === myId) {
+            const active = pKeys.filter(k => !players[k].kickedAt);
+            const nextK  = active[(active.indexOf(cpKey) + 1) % active.length] || active[0] || null;
+            gameRef.update({ gameState:'waiting_deal', currentPlayerKey: nextK, lastActionTime: firebase.database.ServerValue.TIMESTAMP });
         }
-
-        const pKeys=Object.keys(localData.players);
-        let nextK=pKeys[(pKeys.indexOf(myId)+1)%pKeys.length];
-        let updates={
-            [`players/${myId}/balance`]:nBal,pool:nPool,deck,c3:c3||null,
-            statusMsg:msg,gameState:'waiting_deal',currentPlayerKey:nextK,
-            lastActionTime:firebase.database.ServerValue.TIMESTAMP
-        };
-
-        const minPoolNeeded=localData.entryFee*pKeys.length;
-        const needRefill=(localData.autoRefill&&nPool<minPoolNeeded)||(nPool<=0);
-        let refillTriggered=false;
-        if(needRefill){
-            let total=0;
-            pKeys.forEach(k=>{const cb=(k===myId)?nBal:localData.players[k].balance;updates[`players/${k}/balance`]=cb-localData.entryFee;total+=localData.entryFee;});
-            updates.pool=nPool+total;refillTriggered=true;
-        }
-
-        if(type!=='fold'&&c3){
-            updates.lastShot={
-                id:Date.now().toString(),shooterId:myId,card:c3,resultType,
-                emoji:resultType==='win'?'🎉':resultType==='crash'?'💥':'😭',
-                text:resultType==='win'?(type==='up'||type==='down'?'猜對!':'射進!'):resultType==='crash'?'撞柱!!':(type==='up'||type==='down'?'猜錯了':'沒進...'),
-                delta:deltaAmount
-            };
-        }
-
-        gameRef.update(updates);
-        document.getElementById('bet-amount').value=0;
-
-        if(type!=='fold'&&c3){
-            document.getElementById('gate-inner').style.display='none';
-            animateShotCard(c3,resultType,()=>{
-                updateGateCard(c3);
-                if(resultType==='win'){playSfx('sfx-win');spawnConfetti(40);showResultBanner('🎉',type==='up'?'猜對!':'射進!',deltaAmount,'win');}
-                else if(resultType==='crash'){playSfx('sfx-crash');showResultBanner('💥','撞柱!!',deltaAmount,'crash');}
-                else{playSfx('sfx-lose');showResultBanner('😭',type==='up'||type==='down'?'猜錯了':'沒進...',deltaAmount,'lose');}
-                if(refillTriggered)showRefillToast(localData.entryFee,pKeys.length);
+    }
+    /* 60秒無操作 → 標記 kickedAt */
+    if (pKeys[0] === myId && localData.lastActionTime) {
+        const diff = (now - localData.lastActionTime) / 1000;
+        if (diff > 60.5 && cpKey && players[cpKey] && !players[cpKey].kickedAt) {
+            gameRef.child('players/' + cpKey).update({ kickedAt: getServerNow() }).then(() => {
+                const active = pKeys.filter(k => !players[k].kickedAt && k !== cpKey);
+                gameRef.update({ gameState:'waiting_deal', currentPlayerKey: active[0]||null, statusMsg:'玩家超時，移出座位', lastActionTime: firebase.database.ServerValue.TIMESTAMP });
             });
-        } else {
-            playSfx('sfx-fold');
-            showResultBanner('🏳️','棄牌',deltaAmount,'fold');
-            if(refillTriggered)showRefillToast(localData.entryFee,pKeys.length);
         }
     }
 
-    function renderUI(isHost) {
-        document.getElementById('pool-val').innerText   = localData.pool || 0;
-        document.getElementById('status-msg').innerText = localData.statusMsg || "";
-        document.getElementById('cards-left').innerText = localData.deck ? localData.deck.length : 0;
-        document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 20;
+    renderSeats();
+}, 1000);
 
-        updateCard('c1', localData.c1);
-        updateCard('c2', localData.c2);
-        updateGateCard(localData.c3);
+/* ════════════════════════════════════════
+   (2) 踢玩家 → 先標記 kickedAt，10秒後自動刪
+════════════════════════════════════════ */
+function kickPlayer(id) {
+    if (!confirm("剔除該玩家？（10秒後移除座位，期間可重連繼承）")) return;
+    gameRef.child('players/' + id).update({ kickedAt: getServerNow() });
+    /* 如果被踢的是當前出牌玩家，立即跳下一位 */
+    if (localData.currentPlayerKey === id) {
+        const pKeys  = Object.keys(localData.players);
+        const active = pKeys.filter(k => k !== id && !localData.players[k].kickedAt);
+        const nextK  = active[0] || null;
+        gameRef.update({ gameState:'waiting_deal', currentPlayerKey: nextK, lastActionTime: firebase.database.ServerValue.TIMESTAMP });
+    }
+}
 
-        const isTurn = (localData.currentPlayerKey === myId);
+/* ── Emoji ── */
+function sendEmoji(icon) {
+    gameRef.update({ lastEmoji: { name: localData.players[myId].name, icon, time: firebase.database.ServerValue.TIMESTAMP } });
+    if (emojiBarOpen) toggleEmojiBar();
+}
+function showEmojiBroadcast(name, icon) {
+    const a = document.getElementById('emoji-broadcast-area');
+    const d = document.createElement('div'); d.className = 'broadcast-item';
+    d.innerText = `${name}: ${icon}`; a.appendChild(d); setTimeout(() => d.remove(), 2500);
+}
+
+function renderPlayers() {}
+
+/* ── hostStartGame ── */
+function hostStartGame() {
+    const fee    = parseInt(document.getElementById('entry-fee').value)    || 100;
+    const start  = parseInt(document.getElementById('start-balance').value) || 1000;
+    const decks  = parseInt(document.getElementById('deck-count').value)   || 2;
+    const refill = document.getElementById('auto-refill').checked;
+    let players  = localData.players, pool = 0;
+    Object.keys(players).forEach(id => { players[id].balance = start - fee; pool += fee; });
+    gameRef.update({
+        gameStarted: true, deck: generateDecks(decks), pool, entryFee: fee,
+        foldPenalty: parseInt(document.getElementById('fold-penalty').value) || 20,
+        autoRefill: refill, deckCount: decks, gameState: 'waiting_deal',
+        currentPlayerKey: Object.keys(players)[0], players,
+        lastActionTime: firebase.database.ServerValue.TIMESTAMP, statusMsg: "新局開始"
+    });
+}
+
+function drawGoalPost() {
+    playSfx('sfx-deal');
+    let deck = localData.deck || [];
+    if (deck.length < 3) deck = generateDecks(localData.deckCount || 2);
+    const c1 = deck.pop(), c2 = deck.pop();
+    gameRef.update({ deck, c1, c2, c3: null, gameState: 'waiting_shoot', lastActionTime: firebase.database.ServerValue.TIMESTAMP, statusMsg: "請下注後抽門牌" });
+}
+
+function handleAction(type) {
+    let bet = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
+    if (type !== 'fold' && (bet < 1 || bet > localData.pool)) return alert("請下注");
+    let p = localData.players[myId], nBal = p.balance, nPool = localData.pool;
+    let msg = "", c3 = null, deck = localData.deck || [];
+    let resultType = 'neutral', deltaAmount = 0;
+
+    if (type === 'fold') {
+        nBal -= localData.foldPenalty; nPool += localData.foldPenalty;
+        msg = `${p.name} 棄牌`; resultType = 'fold'; deltaAmount = -localData.foldPenalty;
+    } else {
+        if (deck.length < 1) deck = generateDecks(localData.deckCount || 2);
+        c3 = deck.pop();
+        const min = Math.min(localData.c1.val, localData.c2.val);
+        const max = Math.max(localData.c1.val, localData.c2.val);
+        if (localData.c1.val === localData.c2.val) {
+            if (c3.val === localData.c1.val) { nBal -= bet*3; nPool += bet*3; msg = `撞柱(-$${bet*3})`; resultType = 'crash'; deltaAmount = -(bet*3); }
+            else if ((type==='up'&&c3.val>localData.c1.val)||(type==='down'&&c3.val<localData.c1.val)) { nBal += bet; nPool -= bet; msg = `猜對(+$${bet})`; resultType = 'win'; deltaAmount = bet; }
+            else { nBal -= bet; nPool += bet; msg = `猜錯(-$${bet})`; resultType = 'lose'; deltaAmount = -bet; }
+        } else {
+            if (c3.val > min && c3.val < max) { nBal += bet; nPool -= bet; msg = `射進(+$${bet})`; resultType = 'win'; deltaAmount = bet; }
+            else if (c3.val === min || c3.val === max) { nBal -= bet*2; nPool += bet*2; msg = `撞柱(-$${bet*2})`; resultType = 'crash'; deltaAmount = -(bet*2); }
+            else { nBal -= bet; nPool += bet; msg = `沒進(-$${bet})`; resultType = 'lose'; deltaAmount = -bet; }
+        }
+    }
+
+    /* 下一位：跳過 kickedAt 的玩家 */
+    const pKeys  = Object.keys(localData.players);
+    const active = pKeys.filter(k => !localData.players[k].kickedAt);
+    const myActiveIdx = active.indexOf(myId);
+    const nextK  = active[(myActiveIdx + 1) % active.length];
+
+    let updates = {
+        [`players/${myId}/balance`]: nBal, pool: nPool, deck, c3: c3||null,
+        statusMsg: msg, gameState: 'waiting_deal', currentPlayerKey: nextK,
+        lastActionTime: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    const minPoolNeeded = localData.entryFee * active.length;
+    const needRefill = (localData.autoRefill && nPool < minPoolNeeded) || (nPool <= 0);
+    let refillTriggered = false;
+    if (needRefill) {
+        let total = 0;
+        active.forEach(k => { const cb = (k===myId)?nBal:localData.players[k].balance; updates[`players/${k}/balance`] = cb - localData.entryFee; total += localData.entryFee; });
+        updates.pool = nPool + total; refillTriggered = true;
+    }
+
+    if (type !== 'fold' && c3) {
+        updates.lastShot = {
+            id: Date.now().toString(), shooterId: myId, card: c3, resultType,
+            emoji: resultType==='win'?'🎉':resultType==='crash'?'💥':'😭',
+            text: resultType==='win'?(type==='up'||type==='down'?'猜對!':'射進!'):resultType==='crash'?'撞柱!!':(type==='up'||type==='down'?'猜錯了':'沒進...'),
+            delta: deltaAmount
+        };
+    }
+
+    gameRef.update(updates);
+    document.getElementById('bet-amount').value = 0;
+
+    if (type !== 'fold' && c3) {
+        document.getElementById('gate-inner').style.display = 'none';
+        animateShotCard(c3, resultType, () => {
+            updateGateCard(c3);
+            if (resultType==='win')   { playSfx('sfx-win');   spawnConfetti(40); showResultBanner('🎉', type==='up'?'猜對!':'射進!', deltaAmount, 'win'); }
+            else if (resultType==='crash') { playSfx('sfx-crash'); showResultBanner('💥','撞柱!!', deltaAmount, 'crash'); }
+            else { playSfx('sfx-lose'); showResultBanner('😭', type==='up'||type==='down'?'猜錯了':'沒進...', deltaAmount, 'lose'); }
+            if (refillTriggered) showRefillToast(localData.entryFee, active.length);
+        });
+    } else {
+        playSfx('sfx-fold');
+        showResultBanner('🏳️','棄牌', deltaAmount, 'fold');
+        if (refillTriggered) showRefillToast(localData.entryFee, active.length);
+    }
+}
+
+/* ── 點擊牌堆 ── */
+function onDeckClick() {
+    if (!localData.gameStarted) return;
+    if (localData.currentPlayerKey !== myId) return;
+    if (localData.gameState === 'waiting_deal') {
+        drawGoalPost();
+    } else if (localData.gameState === 'waiting_shoot') {
+        const bet    = Math.abs(parseInt(document.getElementById('bet-amount').value)) || 0;
         const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
-
-        const deckEl  = document.getElementById('deck-stack');
-        const hintEl  = document.getElementById('deck-hint');
-        const badgeEl = document.getElementById('deck-badge');
-        if (badgeEl) badgeEl.innerText = localData.deck ? localData.deck.length : 0;
-
-        if (isTurn && localData.gameState === 'waiting_deal') {
-            deckEl.classList.add('can-click');
-            hintEl.innerText='點擊抽牌'; hintEl.classList.add('show');
-        } else if (isTurn && localData.gameState === 'waiting_shoot') {
-            deckEl.classList.add('can-click');
-            hintEl.innerText = isSame ? '猜大/猜小' : '下注後點擊射門';
-            hintEl.classList.add('show');
+        if (bet < 1 || bet > localData.pool) {
+            const h = document.getElementById('deck-hint');
+            h.innerText = '⚠️ 請先下注!'; h.classList.add('show');
+            setTimeout(() => { h.innerText = '下注後點擊射門'; }, 1500); return;
+        }
+        if (isSame) {
+            const h = document.getElementById('deck-hint');
+            h.innerText = '⚠️ 請猜大或猜小'; h.classList.add('show');
+            setTimeout(() => { h.innerText = '猜大/猜小'; }, 1500);
         } else {
-            deckEl.classList.remove('can-click');
-            hintEl.classList.remove('show');
-        }
-
-        const betPanel = document.getElementById('bet-panel');
-        betPanel.style.display = (isTurn && localData.gameState === 'waiting_shoot') ? 'flex' : 'none';
-
-        document.getElementById('btn-up').style.display   = isSame ? 'inline-block' : 'none';
-        document.getElementById('btn-down').style.display = isSame ? 'inline-block' : 'none';
-    }
-
-    function updateGateCard(c) {
-        const gi=document.getElementById('gate-inner'),c3g=document.getElementById('c3-in-gate');
-        if(!c){gi.style.display='';gi.innerText='待射門';c3g.style.display='none';c3g.innerHTML='';}
-        else{
-            gi.style.display='none';
-            const isRed=c.suit==='♥'||c.suit==='♦';
-            c3g.style.display='block';
-            const w='clamp(44px,7.5vmin,68px)',h='clamp(62px,10.5vmin,96px)';
-            c3g.innerHTML=`<div class="card${isRed?' red':''}" style="width:${w};height:${h};">${c.suit}\n${c.label}</div>`;
+            handleAction('shoot');
         }
     }
-    function updateCard(id,c){
-        const el=document.getElementById(id);
-        if(!c){el.classList.add('hidden');el.innerText='?';}
-        else{el.classList.remove('hidden');el.innerText=`${c.suit}\n${c.label}`;el.classList.toggle('red',c.suit==='♥'||c.suit==='♦');}
+}
+
+/* ── renderUI ── */
+function renderUI(isHost) {
+    document.getElementById('pool-val').innerText    = localData.pool || 0;
+    document.getElementById('status-msg').innerText  = localData.statusMsg || "";
+    document.getElementById('cards-left').innerText  = localData.deck ? localData.deck.length : 0;
+    document.getElementById('fold-cost-ui').innerText= localData.foldPenalty || 20;
+
+    updateCard('c1', localData.c1);
+    updateCard('c2', localData.c2);
+    updateGateCard(localData.c3);
+
+    const isTurn = (localData.currentPlayerKey === myId);
+    const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
+    const deckEl = document.getElementById('deck-stack');
+    const hintEl = document.getElementById('deck-hint');
+    const badgeEl= document.getElementById('deck-badge');
+    if (badgeEl) badgeEl.innerText = localData.deck ? localData.deck.length : 0;
+
+    if (isTurn && localData.gameState === 'waiting_deal') {
+        deckEl.classList.add('can-click'); hintEl.innerText = '點擊抽牌'; hintEl.classList.add('show');
+    } else if (isTurn && localData.gameState === 'waiting_shoot') {
+        deckEl.classList.add('can-click'); hintEl.innerText = isSame ? '猜大/猜小' : '下注後點擊射門'; hintEl.classList.add('show');
+    } else {
+        deckEl.classList.remove('can-click'); hintEl.classList.remove('show');
     }
-    function addBet(v){
-        let cur=parseInt(document.getElementById('bet-amount').value)||0;
-        document.getElementById('bet-amount').value=Math.min(cur+v,localData.pool);
+
+    document.getElementById('bet-panel').style.display = (isTurn && localData.gameState === 'waiting_shoot') ? 'flex' : 'none';
+    document.getElementById('btn-up').style.display    = isSame ? 'inline-block' : 'none';
+    document.getElementById('btn-down').style.display  = isSame ? 'inline-block' : 'none';
+}
+
+function updateGateCard(c) {
+    const gi = document.getElementById('gate-inner'), c3g = document.getElementById('c3-in-gate');
+    if (!c) { gi.style.display=''; gi.innerText='待射門'; c3g.style.display='none'; c3g.innerHTML=''; }
+    else {
+        gi.style.display='none';
+        const isRed = c.suit==='♥' || c.suit==='♦';
+        c3g.style.display='block';
+        const w='clamp(44px,7.5vmin,68px)', h='clamp(62px,10.5vmin,96px)';
+        c3g.innerHTML=`<div class="card${isRed?' red':''}" style="width:${w};height:${h};">${c.suit}\n${c.label}</div>`;
     }
-    function setAllIn(){
-        document.getElementById('allin-pool-preview').innerText='$'+(localData.pool||0);
-        document.getElementById('all-in-confirm-overlay').classList.add('show');
-    }
-    function cancelAllIn(){document.getElementById('all-in-confirm-overlay').classList.remove('show');}
-    function confirmAllIn(){
-        document.getElementById('all-in-confirm-overlay').classList.remove('show');
-        gameRef.update({allInTrigger:getServerNow().toString()});
-        document.getElementById('bet-amount').value=localData.pool;
-    }
-    function generateDecks(count){
-        let deck=[];const suits=['♠','♥','♦','♣'];
-        for(let i=0;i<count;i++)suits.forEach(s=>{for(let v=1;v<=13;v++)deck.push({val:v,suit:s,label:labels[v]||v});});
-        return deck.sort(()=>Math.random()-0.5);
-    }
-    function kickPlayer(id){if(confirm("剔除該玩家?"))gameRef.child('players/'+id).remove();}
-    function hostResetToLobby(){if(confirm("重製大廳狀態?"))gameRef.update({gameStarted:false});}
+}
+function updateCard(id, c) {
+    const el = document.getElementById(id);
+    if (!c) { el.classList.add('hidden'); el.innerText='?'; }
+    else { el.classList.remove('hidden'); el.innerText=`${c.suit}\n${c.label}`; el.classList.toggle('red', c.suit==='♥'||c.suit==='♦'); }
+}
+function addBet(v) {
+    let cur = parseInt(document.getElementById('bet-amount').value)||0;
+    document.getElementById('bet-amount').value = Math.min(cur+v, localData.pool);
+}
+function setAllIn() {
+    document.getElementById('allin-pool-preview').innerText = '$'+(localData.pool||0);
+    document.getElementById('all-in-confirm-overlay').classList.add('show');
+}
+function cancelAllIn() { document.getElementById('all-in-confirm-overlay').classList.remove('show'); }
+function confirmAllIn() {
+    document.getElementById('all-in-confirm-overlay').classList.remove('show');
+    gameRef.update({ allInTrigger: getServerNow().toString() });
+    document.getElementById('bet-amount').value = localData.pool;
+}
+function generateDecks(count) {
+    let deck = []; const suits = ['♠','♥','♦','♣'];
+    for (let i = 0; i < count; i++) suits.forEach(s => { for (let v = 1; v <= 13; v++) deck.push({val:v,suit:s,label:labels[v]||v}); });
+    return deck.sort(() => Math.random()-0.5);
+}
+function hostResetToLobby() { if (confirm("重製大廳狀態?")) gameRef.update({ gameStarted: false }); }
 </script>
 </body>
 </html>
