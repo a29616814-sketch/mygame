@@ -113,11 +113,11 @@ html, body {
 }
 #oval.my-turn { animation: tableGlow 1.5s ease-in-out infinite; }
 
-/* ── 桌面中央牌區 ── */
+/* ── 桌面中央牌區 — 偏上，為下注面板讓位 ── */
 #table-center {
     position: absolute;
     top: 50%; left: 50%;
-    transform: translate(-50%, -56%);
+    transform: translate(-50%, -62%);
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     z-index: 10; pointer-events: none;
 }
@@ -217,11 +217,13 @@ html, body {
 body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 
 /* ════════════════════════════════════════
-   (1) 下注面板 — 直接嵌在綠色桌面底部，無黑色遮罩
+   (1) 下注面板 — 桌面中央偏下，不蓋自己座位
+   自己座位固定在6點（底部），面板在它上方
 ════════════════════════════════════════ */
 #bet-panel {
     position: absolute;
-    bottom: 4%;
+    /* 距離底部留出自己座位的空間，面板在中央偏下 */
+    bottom: 18%;
     left: 50%;
     transform: translateX(-50%);
     width: 90%;
@@ -231,8 +233,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
     justify-content: center;
     gap: clamp(4px, 1vmin, 8px);
     padding: 8px 12px 10px;
-    /* 半透明綠色，融入桌面 */
-    background: rgba(26, 70, 42, 0.82);
+    background: rgba(26, 70, 42, 0.88);
     border-radius: 16px;
     border: 1.5px solid rgba(212,175,55,0.5);
     box-shadow: 0 2px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
@@ -720,20 +721,37 @@ function renderSeats() {
     const pKeys = Object.keys(localData.players);
     const n = pKeys.length;
     if (n === 0) return;
-    const myIdx = pKeys.indexOf(myId);
-    const rx = 42, ry = 38;
+    const myIdx = pKeys.indexOf(myId); // kept for reference
 
     pKeys.forEach((id, i) => {
         const p       = localData.players[id];
         const isMe    = (id === myId);
         const isHost  = (i === 0);
         const isActive= (id === localData.currentPlayerKey);
-        /* (2) 被踢緩衝期 */
         const isKicked= !!p.kickedAt;
-        const relIdx  = (i - myIdx + n) % n;
-        const angleRad= (90 + relIdx * (360/n)) * Math.PI / 180;
-        const cx = 50 + rx * Math.cos(angleRad);
-        const cy = 50 + ry * Math.sin(angleRad);
+
+        let cx, cy;
+        if (isMe) {
+            /* 自己永遠在6點正下方，橢圓內側邊緣 */
+            cx = 50;
+            cy = 88;
+        } else {
+            /* 其他人平均分布在上方 270 度弧（從 240° 到 -60° 即頂部半圈+兩側） */
+            const others     = pKeys.filter(k => k !== myId);
+            const otherIdx   = others.indexOf(id);
+            const otherCount = others.length;
+            const rx = 42, ry = 36;
+            /* 上方180度：從左（210°）到右（330°）依序排 */
+            const startDeg = 210;
+            const endDeg   = 330;
+            const spread   = endDeg - startDeg;
+            const deg = otherCount === 1
+                ? 270                                              // 只有一人就放正上方
+                : startDeg + (otherIdx / (otherCount - 1)) * spread;
+            const rad = deg * Math.PI / 180;
+            cx = 50 + rx * Math.cos(rad);
+            cy = 50 + ry * Math.sin(rad);
+        }
         const crown = isHost ? ' 👑' : '';
 
         let tmr = '';
