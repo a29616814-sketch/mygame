@@ -301,65 +301,151 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 .tool-btn:active{ filter:brightness(1.3); }
 .tool-btn.leave{ border-color:#e74c3c; color:#e74c3c; }
 
-/* Canvas */
-#shot-canvas{ position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:7000; }
+/* ════ BGM 控制器 ════ */
+#bgm-ctrl{
+    position:fixed; top:max(var(--safe-top),10px); right:max(var(--safe-right),10px);
+    z-index:8600; display:none; align-items:center; gap:6px;
+    background:rgba(0,0,0,0.72); border:1px solid rgba(212,175,55,0.45);
+    border-radius:30px; padding:5px 12px 5px 8px;
+    backdrop-filter:blur(8px); box-shadow:0 2px 16px rgba(0,0,0,0.5);
+    transition:opacity 0.3s;
+}
+#bgm-ctrl:hover{ opacity:1 !important; }
+#bgm-toggle-btn{
+    background:none; border:none; color:var(--gold); font-size:1.15rem;
+    cursor:pointer; width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+    border-radius:50%; transition:transform 0.18s;
+}
+#bgm-toggle-btn:active{ transform:scale(0.85); }
+#bgm-toggle-btn.playing{ animation:bgmSpin 4s linear infinite; }
+@keyframes bgmSpin{ 0%{filter:drop-shadow(0 0 4px var(--gold));} 50%{filter:drop-shadow(0 0 10px var(--gold));} 100%{filter:drop-shadow(0 0 4px var(--gold));} }
+#bgm-vol{
+    -webkit-appearance:none; appearance:none;
+    width:56px; height:4px; background:rgba(255,255,255,0.18); border-radius:4px; outline:none; cursor:pointer;
+}
+#bgm-vol::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--gold); cursor:pointer; box-shadow:0 0 6px rgba(212,175,55,0.6);
+}
+#bgm-vol::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; background:var(--gold); border:none; cursor:pointer; }
+#bgm-note{ font-size:0.65rem; color:rgba(212,175,55,0.7); letter-spacing:0.5px; white-space:nowrap; }
 
-/* 結果橫幅 */
+/* ════ Pool 金額動畫 ════ */
+@keyframes poolPop{ 0%{transform:scale(1);} 40%{transform:scale(1.18);color:#fff;} 100%{transform:scale(1);} }
+.pool-pop{ animation:poolPop 0.4s ease-out; }
+
+/* ════ 座位倒計時進度條 ════ */
+.seat-timer-bar-wrap{
+    width:100%; height:3px; background:rgba(255,255,255,0.1); border-radius:2px;
+    margin-top:3px; overflow:hidden;
+}
+.seat-timer-bar{
+    height:100%; border-radius:2px;
+    background:linear-gradient(90deg,#2ecc71,#f1c40f);
+    transition:width 1s linear, background 1s;
+}
+.seat-timer-bar.warn{ background:linear-gradient(90deg,#e67e22,#e74c3c); }
+
+/* ════ 牌面升級：發光邊框 ════ */
+.card.red{ color:var(--red); text-shadow:0 0 6px rgba(231,76,60,0.4); }
+.card:not(.hidden):not(.red){ text-shadow:0 0 4px rgba(0,0,0,0.3); }
+.card:not(.hidden){
+    box-shadow:2px 2px 10px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+/* ════ 籌碼按鈕 hover 光暈 ════ */
+.chip-btn img:hover{ box-shadow:0 0 14px rgba(212,175,55,0.7),0 2px 6px rgba(0,0,0,0.5); transform:scale(1.08); }
+.chip-btn img{ transition:transform 0.15s, box-shadow 0.15s; }
+
+/* ════ 輪到你 Toast 升級 ════ */
+#my-turn-toast{
+    display:none; position:fixed; top:50%; right:12px;
+    transform:translateY(-50%) translateX(60px);
+    background:linear-gradient(135deg,var(--gold),#b8960c);
+    color:#1a472a; font-weight:bold; font-size:0.95rem;
+    padding:10px 22px; border-radius:30px; z-index:8500;
+    box-shadow:0 0 24px rgba(212,175,55,0.6),0 4px 20px rgba(0,0,0,0.6);
+    animation:toastSlideIn 0.4s ease-out forwards;
+    border:2px solid rgba(255,255,255,0.3);
+}
+@keyframes toastSlideIn{ from{transform:translateY(-50%) translateX(60px);opacity:0;} to{transform:translateY(-50%) translateX(0);opacity:1;} }
+
+/* ════ 結果橫幅升級 ════ */
 #result-banner{
     display:none; position:fixed; top:50%; left:50%;
     transform:translate(-50%,-50%) scale(0.5); z-index:8000;
-    background:rgba(0,0,0,0.93); border-radius:20px; padding:14px 28px;
+    border-radius:24px; padding:18px 36px;
     border:3px solid var(--gold); text-align:center;
-    transition:transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275),opacity 0.35s;
-    opacity:0; pointer-events:none;
+    transition:transform 0.38s cubic-bezier(0.175,0.885,0.32,1.275),opacity 0.38s;
+    opacity:0; pointer-events:none; overflow:hidden;
+}
+#result-banner.type-win{
+    background:linear-gradient(135deg,rgba(0,0,0,0.95),rgba(26,70,42,0.95));
+    border-color:#2ecc71;
+    box-shadow:0 0 40px rgba(46,204,113,0.5), 0 10px 40px rgba(0,0,0,0.8);
+}
+#result-banner.type-lose{
+    background:linear-gradient(135deg,rgba(0,0,0,0.95),rgba(60,20,20,0.95));
+    border-color:var(--red);
+    box-shadow:0 0 30px rgba(231,76,60,0.35), 0 10px 40px rgba(0,0,0,0.8);
+}
+#result-banner.type-crash{
+    background:linear-gradient(135deg,rgba(0,0,0,0.95),rgba(50,35,10,0.95));
+    border-color:#f39c12;
+    box-shadow:0 0 30px rgba(243,156,18,0.4), 0 10px 40px rgba(0,0,0,0.8);
 }
 #result-banner.show{ display:block; transform:translate(-50%,-50%) scale(1); opacity:1; }
-.rb-emoji{ font-size:2.2rem; }
-.rb-text{ font-size:1.3rem; font-weight:bold; margin:3px 0; }
-.rb-amount{ font-size:1.7rem; font-weight:bold; }
-.rb-amount.positive{ color:#2ecc71; }
-.rb-amount.negative{ color:var(--red); }
+.rb-emoji{ font-size:2.6rem; line-height:1; }
+.rb-text{ font-size:1.4rem; font-weight:bold; margin:5px 0 4px; }
+.rb-amount{ font-size:1.9rem; font-weight:bold; letter-spacing:1px; }
+.rb-amount.positive{ color:#2ecc71; text-shadow:0 0 16px rgba(46,204,113,0.7); }
+.rb-amount.negative{ color:var(--red); text-shadow:0 0 12px rgba(231,76,60,0.5); }
+#result-banner::before{
+    content:''; position:absolute; inset:0; pointer-events:none; border-radius:22px;
+    background:linear-gradient(135deg,rgba(255,255,255,0.06) 0%,transparent 60%);
+}
+
+/* Canvas */
+#shot-canvas{ position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:7000; }
+
+/* ════ 其他 ════ */
 
 .confetti-piece{ position:fixed; width:10px; height:14px; top:-20px; border-radius:2px; pointer-events:none; animation:confettiFall linear forwards; z-index:7999; }
 @keyframes confettiFall{ 0%{transform:translateY(0) rotate(0deg);opacity:1;} 100%{transform:translateY(110vh) rotate(720deg);opacity:0;} }
 
 #all-in-confirm-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:9000; flex-direction:column; justify-content:center; align-items:center; }
 #all-in-confirm-overlay.show{ display:flex; }
-.allin-box{ background:linear-gradient(135deg,#1a1a1a,#2c0000); border:3px solid var(--red); border-radius:24px; padding:22px 30px; text-align:center; animation:alinPop 0.3s cubic-bezier(0.175,0.885,0.32,1.275); }
-@keyframes alinPop{ from{transform:scale(0.6);opacity:0;} to{transform:scale(1);opacity:1;} }
+.allin-box{ background:linear-gradient(135deg,#1a1a1a,#2c0000); border:3px solid var(--red); border-radius:24px; padding:22px 30px; text-align:center; animation:alinPop 0.35s cubic-bezier(0.175,0.885,0.32,1.275); box-shadow:0 0 30px rgba(231,76,60,0.4), 0 10px 40px rgba(0,0,0,0.8); }
+@keyframes alinPop{ from{transform:scale(0.5) rotate(-5deg);opacity:0;} to{transform:scale(1) rotate(0deg);opacity:1;} }
 .allin-box h2{ font-size:1.5rem; color:var(--red); margin-bottom:6px; }
 .allin-box p{ color:#ccc; margin-bottom:12px; }
 .allin-amount{ font-size:2rem; color:var(--gold); font-weight:bold; margin-bottom:16px; }
 .allin-yes{ background:var(--red)!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
 .allin-no{ background:#555!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
 #all-in-overlay{
-    display:none; position:fixed; inset:0; z-index:9999;
-    flex-direction:column; justify-content:center; align-items:center;
-    background:radial-gradient(ellipse at center, rgba(60,0,0,0.98) 0%, rgba(0,0,0,0.99) 100%);
+    display:none; position:fixed; inset:0;
+    background:radial-gradient(ellipse at center, rgba(120,0,0,0.97) 0%, rgba(0,0,0,0.99) 100%);
+    z-index:9999; flex-direction:column; justify-content:center; align-items:center;
     overflow:hidden;
 }
 #all-in-overlay::before{
-    content:''; position:absolute; inset:0; pointer-events:none;
-    background:repeating-conic-gradient(rgba(212,175,55,0.04) 0deg 10deg, transparent 10deg 20deg);
-    animation:spinBg 8s linear infinite;
+    content:''; position:absolute; inset:-20px;
+    background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(255,50,0,0.05) 10px,rgba(255,50,0,0.05) 12px);
+    animation:allInBg 0.5s linear infinite;
 }
-@keyframes spinBg{ to{ transform:rotate(360deg); } }
+@keyframes allInBg{ 0%{transform:translate(0,0);} 100%{transform:translate(12px,12px);} }
 #all-in-overlay h1{
-    color:var(--gold); margin-top:16px;
-    font-size:clamp(1.6rem,6vw,3rem);
-    text-shadow:0 0 30px rgba(212,175,55,0.9), 0 0 60px rgba(255,100,0,0.6);
-    animation:allinPulse 0.6s ease-in-out infinite alternate;
-    position:relative; z-index:2; letter-spacing:2px;
+    color:var(--gold); margin-top:16px; font-size:clamp(1.4rem,5vw,2.2rem);
+    text-shadow:0 0 20px rgba(255,150,0,0.9), 0 0 40px rgba(255,100,0,0.6);
+    animation:allInTitle 0.4s ease-out infinite alternate; z-index:1;
+    letter-spacing:2px;
 }
-@keyframes allinPulse{
-    from{ transform:scale(1);   text-shadow:0 0 20px rgba(212,175,55,0.8); }
-    to  { transform:scale(1.08);text-shadow:0 0 40px rgba(255,160,0,1), 0 0 80px rgba(255,80,0,0.8); }
+@keyframes allInTitle{ from{transform:scale(1);} to{transform:scale(1.06);} }
+#video-box{ position:relative; z-index:1; border-radius:16px; overflow:hidden;
+    box-shadow:0 0 40px rgba(255,100,0,0.6), 0 0 80px rgba(255,0,0,0.3);
 }
-#video-box{ position:relative; z-index:2; border-radius:12px; overflow:hidden;
-    box-shadow:0 0 40px rgba(212,175,55,0.5), 0 0 80px rgba(255,80,0,0.3); }
 
-#my-turn-toast{ display:none; position:fixed; top:50%; right:12px; transform:translateY(-50%) translateX(60px); background:var(--gold); color:#1a472a; font-weight:bold; font-size:0.9rem; padding:8px 18px; border-radius:30px; z-index:8500; box-shadow:0 4px 20px rgba(0,0,0,0.6); animation:toastSlideIn 0.4s ease-out forwards; }
-@keyframes toastSlideIn{ from{transform:translateY(-50%) translateX(60px);opacity:0;} to{transform:translateY(-50%) translateX(0);opacity:1;} }
+/* ════ 其他 Toast ════ */
 #refill-toast{ display:none; position:fixed; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); color:var(--gold); border:2px solid var(--gold); font-size:0.85rem; padding:7px 18px; border-radius:20px; z-index:8500; white-space:nowrap; }
 #reconnect-toast{ display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); color:var(--gold); border:2px solid var(--gold); border-radius:16px; padding:16px 28px; text-align:center; z-index:9500; font-size:1rem; }
 
@@ -404,6 +490,8 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 <audio id="sfx-fold"  src="sfx/fold.mp3"  preload="auto"></audio>
 <audio id="sfx-allin" src="sfx/allin.mp3" preload="auto"></audio>
 <audio id="sfx-deal"  src="sfx/deal.mp3"  preload="auto"></audio>
+<!-- 背景音樂：請將 bgm.mp3 放到 sfx/ 目錄下 -->
+<audio id="bgm" src="sfx/bgm.mp3" preload="auto" loop></audio>
 
 <!-- ══ 登入畫面 ══ -->
 <div id="login-screen">
@@ -466,6 +554,13 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
             <div id="lobby-waiting-msg">⏳ 等待房主開始遊戲...</div>
         </div>
     </div>
+</div>
+
+<!-- ══ BGM 控制器 ══ -->
+<div id="bgm-ctrl">
+    <button id="bgm-toggle-btn" onclick="toggleBgm()" title="背景音樂">🎵</button>
+    <input type="range" id="bgm-vol" min="0" max="1" step="0.05" value="0.35" oninput="setBgmVol(this.value)" title="音量">
+    <span id="bgm-note">BGM</span>
 </div>
 
 <!-- ══ 遊戲畫面 ══ -->
@@ -608,48 +703,109 @@ const RECONNECT_WINDOW=60*1000, KICK_GRACE=10*1000;
 db.ref('.info/serverTimeOffset').on('value', s => serverOffset=s.val());
 function getServerNow(){ return Date.now()+serverOffset; }
 
-/* ════ 音效 (跨平台解鎖) ════ */
-let audioUnlocked = false;
-let pendingSfx = [];
+/* ════ 音效 & BGM ════ */
+// AudioContext unlock for iOS/Android — must be called inside a user gesture
+let _audioUnlocked = false;
+let _bgmPlaying = false;
+let _bgmVol = 0.35;
 
 function unlockAudio(){
-    if(audioUnlocked) return;
-    audioUnlocked = true;
-    // 同時靜音播放所有音效元素一次，解鎖 iOS/Android 限制
-    ['sfx-win','sfx-lose','sfx-crash','sfx-fold','sfx-allin','sfx-deal'].forEach(id=>{
-        const el=document.getElementById(id);
-        if(!el) return;
-        el.muted=true;
-        el.play().then(()=>{ el.pause(); el.muted=false; el.currentTime=0; }).catch(()=>{});
+    if(_audioUnlocked) return;
+    _audioUnlocked = true;
+    try{
+        const ac = new (window.AudioContext||window.webkitAudioContext)();
+        const buf = ac.createBuffer(1,1,22050);
+        const src = ac.createBufferSource();
+        src.buffer = buf; src.connect(ac.destination); src.start(0);
+        ac.resume().catch(()=>{});
+    }catch(e){}
+    // Pre-play all audio elements silently to unlock them
+    document.querySelectorAll('audio').forEach(el=>{
+        if(el.id==='bgm') return; // BGM 另外處理
+        el.volume=0; el.play().catch(()=>{}).finally(()=>{ el.pause(); el.currentTime=0; el.volume=1; });
     });
-    // 播放等待中的音效
-    pendingSfx.forEach(id=>_playSfxNow(id));
-    pendingSfx=[];
+    // 嘗試啟動 BGM
+    startBgm();
 }
 
-function _playSfxNow(id){
-    const el=document.getElementById(id);
-    if(!el) return;
-    el.currentTime=0;
-    el.muted=false;
-    el.play().catch(()=>{});
+function startBgm(){
+    const bgm = document.getElementById('bgm');
+    if(!bgm) return;
+    bgm.volume = _bgmVol;
+    bgm.loop = true;
+    const p = bgm.play();
+    if(p && p.then){
+        p.then(()=>{ _bgmPlaying=true; updateBgmBtn(); })
+         .catch(()=>{ _bgmPlaying=false; updateBgmBtn(); });
+    }
+}
+
+function toggleBgm(){
+    unlockAudio();
+    const bgm = document.getElementById('bgm');
+    if(!bgm) return;
+    if(_bgmPlaying){
+        bgm.pause();
+        _bgmPlaying = false;
+    } else {
+        bgm.volume = _bgmVol;
+        bgm.play().then(()=>{ _bgmPlaying=true; }).catch(()=>{});
+        _bgmPlaying = true;
+    }
+    updateBgmBtn();
+}
+
+function setBgmVol(v){
+    _bgmVol = parseFloat(v);
+    const bgm = document.getElementById('bgm');
+    if(bgm) bgm.volume = _bgmVol;
+    if(_bgmVol > 0 && !_bgmPlaying && _audioUnlocked){ startBgm(); }
+}
+
+function updateBgmBtn(){
+    const btn = document.getElementById('bgm-toggle-btn');
+    if(!btn) return;
+    if(_bgmPlaying){
+        btn.innerText = '🎵';
+        btn.classList.add('playing');
+        btn.title = '關閉背景音樂';
+    } else {
+        btn.innerText = '🔇';
+        btn.classList.remove('playing');
+        btn.title = '開啟背景音樂';
+    }
+}
+
+// ALL IN 時壓低 BGM
+function bgmDuck(on){
+    const bgm = document.getElementById('bgm');
+    if(!bgm || !_bgmPlaying) return;
+    bgm.volume = on ? Math.max(0, _bgmVol * 0.15) : _bgmVol;
 }
 
 function playSfx(id){
-    if(audioUnlocked){ _playSfxNow(id); }
-    else{ pendingSfx.push(id); }
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.currentTime=0;
+    el.volume=1;
+    const p=el.play();
+    if(p && p.catch) p.catch(()=>{});
 }
-
-// 監聽第一次用戶互動來解鎖音頻
-['touchstart','touchend','mousedown','keydown','click'].forEach(evt=>{
-    document.addEventListener(evt, unlockAudio, {once:true, passive:true});
-});
 
 /* ════ 畫面切換 ════ */
 function showScreen(name){
     document.getElementById('login-screen').style.display  = name==='login'  ? 'flex' : 'none';
     document.getElementById('lobby-screen').style.display  = name==='lobby'  ? 'flex' : 'none';
     document.getElementById('game-screen').style.display   = name==='game'   ? 'block': 'none';
+    // BGM 音量依畫面調整
+    const bgm = document.getElementById('bgm');
+    if(bgm && _bgmPlaying){
+        if(name==='game') bgm.volume = _bgmVol;
+        else bgm.volume = _bgmVol * 0.55; // 大廳稍低
+    }
+    // BGM 控制器只在登入後顯示
+    const ctrl = document.getElementById('bgm-ctrl');
+    if(ctrl) ctrl.style.display = name==='login' ? 'none' : 'flex';
 }
 
 /* ════ 聊天 (保留最近 20 條) ════ */
@@ -786,7 +942,9 @@ function renderSeats(){
         let tmr='';
         if(isActive&&localData.lastActionTime&&!isKicked){
             const sec=Math.max(0,60-Math.floor((getServerNow()-localData.lastActionTime)/1000));
-            tmr=`<div class="seat-tmr">⏱${sec}s</div>`;
+            const pct=Math.round(sec/60*100);
+            const warnCls=sec<15?'warn':'';
+            tmr=`<div class="seat-tmr">⏱${sec}s</div><div class="seat-timer-bar-wrap"><div class="seat-timer-bar ${warnCls}" style="width:${pct}%"></div></div>`;
         }
         if(isKicked){
             const remain=Math.max(0,Math.ceil((p.kickedAt+KICK_GRACE-getServerNow())/1000));
@@ -841,6 +999,7 @@ function renderLobbyPlayers(){
 
 /* ════ 加入房間 ════ */
 function joinRoom(){
+    unlockAudio();
     const name=document.getElementById('my-name').value.trim();
     if(!name) return alert('請輸入暱稱');
     myName=name;
@@ -981,26 +1140,21 @@ function startListening(){
         // ALL IN 影片
         if(localData.allInTrigger&&localData.allInTrigger!==lastEffectId){
             const v=document.getElementById('video-box');
-            // 建立 video 不加 muted，讓影片本身有聲音（需配合 audioUnlocked）
-            const vid=document.createElement('video');
-            vid.width=315; vid.height=560;
-            vid.setAttribute('playsinline','');
-            vid.setAttribute('webkit-playsinline','');
-            vid.preload='auto';
-            const src=document.createElement('source');
-            src.src='video/allin.mp4'; src.type='video/mp4';
-            vid.appendChild(src);
-            v.innerHTML=''; v.appendChild(vid);
+            // 用 muted+playsinline 確保自動播放，音效已在 confirmAllIn 觸發
+            v.innerHTML=`<video width="315" height="560" autoplay muted playsinline webkit-playsinline style="max-width:90vw;max-height:60vh;border-radius:12px;"><source src="video/allin.mp4" type="video/mp4"></video>`;
             document.getElementById('all-in-overlay').style.display='flex';
-            // 有聲播放；被阻擋則靜音播放 + 單獨播音效
-            vid.play().then(()=>{
-                if(vid.muted) playSfx('sfx-allin');
-            }).catch(()=>{
-                vid.muted=true;
-                vid.play().catch(()=>{});
-                playSfx('sfx-allin');
-            });
-            setTimeout(()=>{ vid.pause(); document.getElementById('all-in-overlay').style.display='none'; },2500);
+            bgmDuck(true); // 壓低背景音樂
+            // 嘗試讓影片有聲音（適用於已解鎖音頻的裝置）
+            const vid=v.querySelector('video');
+            if(vid){
+                vid.muted=false;
+                const vp=vid.play();
+                if(vp&&vp.catch) vp.catch(()=>{ vid.muted=true; vid.play().catch(()=>{}); });
+            }
+            setTimeout(()=>{
+                document.getElementById('all-in-overlay').style.display='none';
+                bgmDuck(false); // 恢復背景音樂
+            },2500);
             lastEffectId=localData.allInTrigger;
         }
 
@@ -1193,6 +1347,7 @@ function handleAction(type){
 }
 
 function onDeckClick(){
+    unlockAudio();
     if(!localData.gameStarted) return;
     if(localData.currentPlayerKey!==myId) return;
     if(localData.gameState==='waiting_deal'){
@@ -1215,7 +1370,16 @@ function onDeckClick(){
 
 /* ════ renderUI ════ */
 function renderUI(isHost){
-    document.getElementById('pool-val').innerText=localData.pool||0;
+    const poolEl = document.getElementById('pool-val');
+    const newPool = localData.pool||0;
+    if(poolEl.innerText !== String(newPool)){
+        poolEl.innerText = newPool;
+        poolEl.classList.remove('pool-pop');
+        // reflow trick
+        void poolEl.offsetWidth;
+        poolEl.classList.add('pool-pop');
+        setTimeout(()=>poolEl.classList.remove('pool-pop'),500);
+    }
     document.getElementById('status-msg').innerText=localData.statusMsg||'';
     document.getElementById('cards-left').innerText=localData.deck?localData.deck.length:0;
     document.getElementById('fold-cost-ui').innerText=localData.foldPenalty||20;
@@ -1264,46 +1428,89 @@ function animateShotCard(cardData,resultType,onDone){
     const lpost=tr(document.getElementById('c1').getBoundingClientRect());
     const rpost=tr(document.getElementById('c2').getBoundingClientRect());
     const isRed=cardData.suit==='♥'||cardData.suit==='♦';
-    const cardW=60,cardH=86;
+    const cardW=62,cardH=88;
     let endX,endY;
     if(resultType==='win'){ endX=gate.x; endY=gate.y; }
     else if(resultType==='crash'){ const pp=Math.random()>0.5?lpost:rpost; endX=pp.x; endY=pp.y; }
     else{ endX=Math.random()>0.5?-cardW:canvas.width+cardW; endY=gate.y-40; }
-    const cpX=(deck.x+endX)/2+(Math.random()-0.5)*80;
-    const cpY=Math.min(deck.y,endY)-130;
+    const cpX=(deck.x+endX)/2+(Math.random()-0.5)*100;
+    const cpY=Math.min(deck.y,endY)-150;
     let t=0,rotation=0;
-    function drawCard(x,y,rot,alpha){
-        ctx.save(); ctx.globalAlpha=alpha; ctx.translate(x,y); ctx.rotate(rot);
-        ctx.fillStyle='#fff'; ctx.strokeStyle='#333'; ctx.lineWidth=2;
+
+    // 拖尾粒子
+    let trail=[];
+
+    function drawCard(x,y,rot,alpha,scale=1){
+        ctx.save(); ctx.globalAlpha=alpha; ctx.translate(x,y); ctx.rotate(rot); ctx.scale(scale,scale);
+        // 卡片陰影
+        ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=12; ctx.shadowOffsetX=3; ctx.shadowOffsetY=3;
+        ctx.fillStyle='#fff'; ctx.strokeStyle='#ccc'; ctx.lineWidth=1.5;
         ctx.beginPath(); ctx.moveTo(-cardW/2+8,-cardH/2); ctx.lineTo(cardW/2-8,-cardH/2);
         ctx.quadraticCurveTo(cardW/2,-cardH/2,cardW/2,-cardH/2+8);
         ctx.lineTo(cardW/2,cardH/2-8); ctx.quadraticCurveTo(cardW/2,cardH/2,cardW/2-8,cardH/2);
         ctx.lineTo(-cardW/2+8,cardH/2); ctx.quadraticCurveTo(-cardW/2,cardH/2,-cardW/2,cardH/2-8);
         ctx.lineTo(-cardW/2,-cardH/2+8); ctx.quadraticCurveTo(-cardW/2,-cardH/2,-cardW/2+8,-cardH/2);
         ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.fillStyle=isRed?'#e74c3c':'#000'; ctx.font="bold 20px 'Segoe UI'";
+        ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
+        // 花色
+        ctx.fillStyle=isRed?'#e74c3c':'#111'; ctx.font="bold 22px 'Segoe UI'";
         ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText(cardData.suit,0,-10); ctx.fillText(cardData.label.toString(),0,14);
+        ctx.fillText(cardData.suit,0,-12); ctx.fillText(cardData.label.toString(),0,14);
         ctx.restore();
     }
+
     let particles=[];
-    function spawnCrash(x,y){ for(let i=0;i<20;i++){ const a=Math.random()*Math.PI*2,s=3+Math.random()*6; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:Math.random()>0.5?'#f39c12':'#e74c3c'}); } }
+    function spawnCrash(x,y){ for(let i=0;i<28;i++){ const a=Math.random()*Math.PI*2,s=3+Math.random()*8; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,r:4+Math.random()*4,color:Math.random()>0.5?'#f39c12':'#e74c3c'}); } }
+    function spawnWin(x,y){ for(let i=0;i<40;i++){ const a=Math.random()*Math.PI*2,s=2+Math.random()*9; particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2,life:1,r:3+Math.random()*5,color:['#f1c40f','#2ecc71','#fff','#d4af37'][Math.floor(Math.random()*4)]}); } }
+
     let phase='fly',it=0;
     function frame(){
         ctx.clearRect(0,0,canvas.width,canvas.height);
+
         if(phase==='fly'){
-            t++; const pp=t/50,e=pp<0.5?2*pp*pp:-1+(4-2*pp)*pp;
+            t++; const pp=t/55,e=pp<0.5?2*pp*pp:-1+(4-2*pp)*pp;
             const bx=(1-e)*(1-e)*deck.x+2*(1-e)*e*cpX+e*e*endX;
             const by=(1-e)*(1-e)*deck.y+2*(1-e)*e*cpY+e*e*endY;
-            rotation+=0.15; drawCard(bx,by,rotation,Math.min(1,pp*3));
-            if(t>=50){ phase='impact'; if(resultType==='crash') spawnCrash(endX,endY); }
+            rotation+=0.18;
+
+            // 拖尾
+            trail.push({x:bx,y:by,life:1});
+            trail.forEach(tr=>{ tr.life-=0.07; });
+            trail=trail.filter(tr=>tr.life>0);
+            trail.forEach(tr=>{
+                ctx.save(); ctx.globalAlpha=tr.life*0.35;
+                ctx.fillStyle=isRed?'rgba(231,76,60,0.5)':'rgba(100,150,255,0.4)';
+                ctx.beginPath(); ctx.arc(tr.x,tr.y,8*tr.life,0,Math.PI*2); ctx.fill();
+                ctx.restore();
+            });
+
+            drawCard(bx,by,rotation,Math.min(1,pp*3));
+            if(t>=55){ phase='impact'; if(resultType==='crash') spawnCrash(endX,endY); if(resultType==='win') spawnWin(endX,endY); }
             requestAnimationFrame(frame);
         } else if(phase==='impact'){
             it++;
-            if(resultType==='win'){ const sc=1-it/25,a=1-it/20; if(a>0){ ctx.save(); ctx.strokeStyle=`rgba(46,204,113,${a})`; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(endX,endY,50+it*3,0,Math.PI*2); ctx.stroke(); ctx.restore(); drawCard(endX,endY,0,a*sc); } }
-            else if(resultType==='crash'){ particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.3;p.life-=0.04;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();ctx.restore();}); particles=particles.filter(p=>p.life>0); drawCard(endX+(Math.random()-0.5)*(10-it*0.5),endY,Math.random()*0.3,Math.max(0,1-it/20)); }
-            else{ const a=Math.max(0,1-it/15),fly=it*8,dir=endX<canvas.width/2?-1:1; drawCard(endX+dir*fly,endY-fly*0.3,rotation+it*0.2,a); }
-            if(it>=25||(resultType==='lose'&&it>=18)){ ctx.clearRect(0,0,canvas.width,canvas.height); if(onDone) onDone(); return; }
+            if(resultType==='win'){
+                // 粒子爆發
+                particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life-=0.035;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();});
+                particles=particles.filter(p=>p.life>0);
+                // 光環
+                const rings=[1,0.65,0.4];
+                rings.forEach((factor,ri)=>{
+                    const r=(40+it*4)*factor, a=Math.max(0,(1-it/30))*factor;
+                    if(a>0){ ctx.save(); ctx.strokeStyle=`rgba(46,204,113,${a})`; ctx.lineWidth=3-ri; ctx.beginPath(); ctx.arc(endX,endY,r,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+                });
+                const sc=1-it/28, a=1-it/22; if(a>0){ drawCard(endX,endY,0,a,sc<0.5?0.5:sc); }
+            }
+            else if(resultType==='crash'){
+                particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.35;p.life-=0.04;ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();});
+                particles=particles.filter(p=>p.life>0);
+                drawCard(endX+(Math.random()-0.5)*(12-it*0.5),endY+(Math.random()-0.5)*4,Math.random()*0.35,Math.max(0,1-it/22));
+            }
+            else{
+                const a=Math.max(0,1-it/15),fly=it*9,dir=endX<canvas.width/2?-1:1;
+                drawCard(endX+dir*fly,endY-fly*0.25,rotation+it*0.22,a);
+            }
+            if(it>=30||(resultType==='lose'&&it>=18)){ ctx.clearRect(0,0,canvas.width,canvas.height); if(onDone) onDone(); return; }
             requestAnimationFrame(frame);
         }
     }
@@ -1318,6 +1525,9 @@ function showResultBanner(emoji,text,amount,type){
     const ae=document.getElementById('rb-amount');
     ae.innerText=(amount>=0?'+':'')+'$'+amount;
     ae.className='rb-amount '+(amount>=0?'positive':'negative');
+    // 根據結果設定顏色主題
+    b.className=''; // 清除舊 class
+    b.classList.add(type==='win'?'type-win':type==='crash'?'type-crash':'type-lose');
     b.classList.remove('show'); b.style.display='block';
     requestAnimationFrame(()=>requestAnimationFrame(()=>b.classList.add('show')));
     setTimeout(()=>{ b.classList.remove('show'); setTimeout(()=>b.style.display='none',400); },2800);
@@ -1332,9 +1542,15 @@ function spawnConfetti(count){
     }
 }
 function addBet(v){ let cur=parseInt(document.getElementById('bet-amount').value)||0; document.getElementById('bet-amount').value=Math.min(cur+v,localData.pool); }
-function setAllIn(){ document.getElementById('allin-pool-preview').innerText='$'+(localData.pool||0); document.getElementById('all-in-confirm-overlay').classList.add('show'); }
+function setAllIn(){ unlockAudio(); document.getElementById('allin-pool-preview').innerText='$'+(localData.pool||0); document.getElementById('all-in-confirm-overlay').classList.add('show'); }
 function cancelAllIn(){ document.getElementById('all-in-confirm-overlay').classList.remove('show'); }
-function confirmAllIn(){ document.getElementById('all-in-confirm-overlay').classList.remove('show'); gameRef.update({allInTrigger:getServerNow().toString()}); document.getElementById('bet-amount').value=localData.pool; }
+function confirmAllIn(){
+    unlockAudio();
+    playSfx('sfx-allin');
+    document.getElementById('all-in-confirm-overlay').classList.remove('show');
+    gameRef.update({allInTrigger:getServerNow().toString()});
+    document.getElementById('bet-amount').value=localData.pool;
+}
 function generateDecks(count){ let deck=[]; const suits=['♠','♥','♦','♣']; for(let i=0;i<count;i++) suits.forEach(s=>{ for(let v=1;v<=13;v++) deck.push({val:v,suit:s,label:labels[v]||v}); }); return deck.sort(()=>Math.random()-0.5); }
 function hostResetToLobby(){ if(confirm('重製大廳狀態?')) gameRef.update({gameStarted:false}); }
 </script>
