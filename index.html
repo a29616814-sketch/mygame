@@ -479,6 +479,38 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 .chip-svg{ filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5)); transition:filter 0.15s,transform 0.15s; }
 .chip-svg:hover{ filter:drop-shadow(0 0 10px rgba(212,175,55,0.7)) drop-shadow(0 3px 6px rgba(0,0,0,0.5)); transform:translateY(-2px); }
 
+/* ════ 桌面籌碼堆疊 ════ */
+#chip-stack-display{
+    display:flex; align-items:flex-end; justify-content:center;
+    gap:clamp(4px,1vmin,8px); min-height:clamp(30px,6vmin,56px);
+    pointer-events:none;
+}
+.table-chip-stack{
+    display:flex; flex-direction:column-reverse; align-items:center;
+    gap:0; position:relative;
+}
+.table-chip{
+    width:clamp(22px,4vmin,36px); height:clamp(7px,1.4vmin,12px);
+    border-radius:50%; position:relative; margin-top:clamp(-4px,-0.8vmin,-6px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25);
+    transition: transform 0.2s ease;
+}
+.table-chip::after{
+    content:''; position:absolute; inset:1px 2px; border-radius:50%;
+    border-top:1px solid rgba(255,255,255,0.18);
+}
+.table-chip-label{
+    font-size:clamp(7px,1.2vmin,10px); color:rgba(255,255,255,0.7);
+    margin-top:clamp(2px,0.5vmin,4px); letter-spacing:0.5px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.8);
+}
+/* chip colors by denomination */
+.tc-10  { background:linear-gradient(180deg,#4a8fd4 0%,#1a5276 50%,#154060 100%); border:1.5px solid #3498db; }
+.tc-50  { background:linear-gradient(180deg,#a0e0f0 0%,#1a6080 50%,#154360 100%); border:1.5px solid #76d7ea; }
+.tc-100 { background:linear-gradient(180deg,#f08080 0%,#922b21 50%,#641e16 100%); border:1.5px solid #e74c3c; }
+.tc-500 { background:linear-gradient(180deg,#80e0a0 0%,#1e8449 50%,#145a32 100%); border:1.5px solid #58d68d; }
+.tc-1000{ background:linear-gradient(180deg,#f0d060 0%,#9a7d0a 50%,#7d6608 100%); border:1.5px solid #d4ac0d; }
+
 /* ════ 洗牌動畫升級 ════ */
 #shuffle-overlay{
     display:none; position:fixed; inset:0; z-index:8800;
@@ -649,6 +681,7 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
         <div id="oval">
             <div id="table-center">
                 <div id="pool-display">💰 $<span id="pool-val">0</span></div>
+                <div id="chip-stack-display"></div>
                 <div id="status-msg"></div>
                 <div id="cards-and-deck">
                     <div class="post-wrap"><div class="post-label">左柱</div><div id="c1" class="card hidden">?</div></div>
@@ -1609,7 +1642,48 @@ function onDeckClick(){
     }
 }
 
-/* ════ renderUI ════ */
+/* ════ 桌面籌碼堆渲染 ════ */
+function renderChipStack(pool){
+    const container = document.getElementById('chip-stack-display');
+    if(!container) return;
+    container.innerHTML = '';
+    if(!pool || pool <= 0) return;
+
+    // 將 pool 分解為各面值籌碼數量（貪心法）
+    const denoms = [
+        {val:1000, cls:'tc-1000', label:'1K'},
+        {val:500,  cls:'tc-500',  label:'500'},
+        {val:100,  cls:'tc-100',  label:'100'},
+        {val:50,   cls:'tc-50',   label:'50'},
+        {val:10,   cls:'tc-10',   label:'10'}
+    ];
+    let remain = pool;
+    const stacks = [];
+    denoms.forEach(d => {
+        const count = Math.floor(remain / d.val);
+        if(count > 0){ stacks.push({...d, count: Math.min(count, 12)}); remain -= d.val * count; }
+    });
+    // 如有零頭，補一個最小籌碼
+    if(remain > 0 && stacks.length === 0) stacks.push({val:10, cls:'tc-10', label:'10', count:1});
+
+    stacks.forEach(s => {
+        if(s.count === 0) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'table-chip-stack';
+        for(let i = 0; i < s.count; i++){
+            const chip = document.createElement('div');
+            chip.className = 'table-chip ' + s.cls;
+            wrap.appendChild(chip);
+        }
+        const lbl = document.createElement('div');
+        lbl.className = 'table-chip-label';
+        lbl.innerText = s.label + '×' + s.count;
+        wrap.appendChild(lbl);
+        container.appendChild(wrap);
+    });
+}
+
+
 function renderUI(isHost){
     const poolEl = document.getElementById('pool-val');
     const newPool = localData.pool||0;
@@ -1621,6 +1695,7 @@ function renderUI(isHost){
         poolEl.classList.add('pool-pop');
         setTimeout(()=>poolEl.classList.remove('pool-pop'),500);
     }
+    renderChipStack(newPool);
     document.getElementById('status-msg').innerText=localData.statusMsg||'';
     document.getElementById('cards-left').innerText=localData.deck?localData.deck.length:0;
     document.getElementById('fold-cost-ui').innerText=localData.foldPenalty||20;
@@ -2021,4 +2096,4 @@ function drawGoalPost(){
 }
 </script>
 </body>
-    </html>
+</html>
