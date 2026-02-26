@@ -84,12 +84,14 @@ html, body {
     padding: max(var(--safe-top),6px) max(var(--safe-right),8px) max(var(--safe-bottom),6px) max(var(--safe-left),8px);
 }
 
-/* 橢圓桌：寬高都用 vmin/vmax，永遠填滿當前螢幕方向 */
+/* 橢圓桌：永遠跟螢幕方向一致
+   直屏：vw < vh → 橢圓窄高（12/6點長軸）
+   橫屏：vw > vh → 橢圓寬扁（9/3點長軸）
+   固定比例：長軸 = 短邊 * 1.9，短軸 = 短邊 * 0.85 */
 #oval {
     position: relative;
-    /* 短邊方向留邊，長邊方向填滿 */
-    width:  min(94vw, 94vh * 2);
-    height: min(82vh, 82vw / 1.8);
+    width:  min(92vw, 92vh * 1.9);
+    height: min(88vh, 88vw * 1.9);
     background: radial-gradient(ellipse at 50% 45%, #3a7a52 0%, #2d5a3c 55%, #1e4a30 100%);
     border-radius: 50%;
     border: 12px solid var(--wood);
@@ -1180,4 +1182,3 @@ function hostResetToLobby() { if (confirm("重製大廳狀態?")) gameRef.update
 </script>
 </body>
 </html>
-
