@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>射龍門 Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
@@ -16,6 +16,11 @@
     --dark: #1a472a;
     --red:  #e74c3c;
     --wood: #8B6914;
+    /* 安全區域 */
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
@@ -28,13 +33,14 @@ html, body {
     touch-action: manipulation;
 }
 
-/* ── 登入畫面（直屏，居中） ── */
+/* ── 登入畫面 ── */
 #setup-screen {
     position: fixed; inset: 0;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     background: radial-gradient(ellipse at center, #1a472a 0%, #0a1f0f 100%);
     z-index: 100;
+    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 #setup-screen h1 { font-size: clamp(1.4rem, 5vw, 2.2rem); color: var(--gold); margin-bottom: 24px; text-shadow: 0 2px 12px rgba(212,175,55,0.5); }
 .setup-box {
@@ -60,39 +66,46 @@ html, body {
 #host-part { display: none; margin-top: 16px; border-top: 1px solid #444; padding-top: 16px; }
 #host-part h3 { color: var(--gold); margin-bottom: 12px; font-size: 1rem; }
 
-/* ── 橫屏遊戲畫面 ── */
+/* ════════════════════════════════════════
+   橫屏遊戲畫面（修正版）
+════════════════════════════════════════ */
 #game-screen {
     display: none;
-    position: fixed; inset: 0;
-    /* 強制橫向：在直屏手機上旋轉整個畫面 */
+    position: fixed;
+    /* 在橫屏時正常顯示；直屏時旋轉90度讓玩家橫持手機 */
+    top: 0; left: 0;
+    width: 100%; height: 100%;
 }
 
-/* 偵測直屏 → 旋轉遊戲區 */
+/* 直屏手機：整個遊戲畫面旋轉90度 */
 @media (orientation: portrait) {
     #game-screen {
         width: 100vh;
         height: 100vw;
-        transform-origin: top left;
-        transform: rotate(90deg) translateY(-100%);
-        /* 使得旋轉後佔滿螢幕 */
-        top: 0; left: 0;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+        transform: rotate(90deg) translateX(0) translateY(-100%);
     }
 }
 
-/* ── 桌面佈局（橫屏）── */
+/* ── 桌面佈局 ── */
 #table-wrap {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
     background: #0d1f15;
+    /* 橫屏時考慮安全區域 */
+    padding-left: max(var(--safe-left), 8px);
+    padding-right: max(var(--safe-right), 8px);
+    padding-bottom: max(var(--safe-bottom), 0px);
 }
 
-/* 橢圓桌本體 */
+/* 橢圓桌 */
 #oval {
     position: relative;
-    width: 96vmax;
-    height: 88vmin;
-    max-width: 1100px;
-    max-height: 640px;
+    /* 縮小桌面以便留出底部下注區空間 */
+    width: min(96vw, 1100px);
+    height: min(78vh, 560px);
     background: radial-gradient(ellipse at 50% 45%, #3a7a52 0%, #2d5a3c 55%, #1e4a30 100%);
     border-radius: 50%;
     border: 12px solid var(--wood);
@@ -101,6 +114,8 @@ html, body {
         0 0 0 8px #2a1a04,
         inset 0 0 80px rgba(0,0,0,0.4),
         0 20px 60px rgba(0,0,0,0.8);
+    /* 桌面往上移，為底部下注面板留空間 */
+    margin-bottom: 10px;
 }
 #oval::before {
     content: '';
@@ -118,49 +133,49 @@ html, body {
 #table-center {
     position: absolute;
     top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -56%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     z-index: 10;
     pointer-events: none;
 }
 #pool-display {
-    font-size: clamp(18px, 3.5vmin, 28px);
+    font-size: clamp(16px, 3vmin, 24px);
     color: #f1c40f;
     font-weight: bold;
     text-shadow: 0 2px 8px rgba(0,0,0,0.8);
 }
 #status-msg {
-    font-size: clamp(10px, 2vmin, 14px);
+    font-size: clamp(9px, 1.8vmin, 13px);
     color: #ccc;
-    min-height: 16px;
+    min-height: 14px;
 }
 
-/* 牌行：左柱 ─ 牌堆 ─ 右柱（含龍門） */
+/* 牌行 */
 #cards-and-deck {
     display: flex;
     align-items: center;
-    gap: clamp(6px, 2vmin, 16px);
+    gap: clamp(4px, 1.5vmin, 12px);
     pointer-events: auto;
 }
 
 /* 門柱 */
-.post-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.post-label { font-size: clamp(8px,1.6vmin,11px); color: #aaa; letter-spacing: 1px; }
+.post-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.post-label { font-size: clamp(7px,1.4vmin,10px); color: #aaa; letter-spacing: 1px; }
 .post-label.gate { color: var(--gold); font-weight: bold; }
-.connector { width: clamp(6px,1.5vmin,14px); height: 3px; background: linear-gradient(90deg, rgba(212,175,55,0.6), rgba(212,175,55,0.2)); align-self: center; flex-shrink: 0; }
+.connector { width: clamp(4px,1.2vmin,10px); height: 3px; background: linear-gradient(90deg, rgba(212,175,55,0.6), rgba(212,175,55,0.2)); align-self: center; flex-shrink: 0; }
 .connector.r { background: linear-gradient(90deg, rgba(212,175,55,0.2), rgba(212,175,55,0.6)); }
 
 /* 牌 */
 .card {
-    width:  clamp(52px, 9vmin, 76px);
-    height: clamp(74px,13vmin,108px);
+    width:  clamp(44px, 7.5vmin, 68px);
+    height: clamp(62px,10.5vmin,96px);
     background: white; border-radius: 8px; color: black;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    font-size: clamp(18px,4vmin,30px); font-weight: bold;
+    font-size: clamp(15px,3.2vmin,26px); font-weight: bold;
     border: 2px solid #333;
     box-shadow: 2px 2px 8px rgba(0,0,0,0.5);
     white-space: pre-wrap; flex-shrink: 0;
@@ -170,22 +185,22 @@ html, body {
 
 /* 龍門框 */
 .gate-frame {
-    width:  clamp(52px, 9vmin, 76px);
-    height: clamp(74px,13vmin,108px);
+    width:  clamp(44px, 7.5vmin, 68px);
+    height: clamp(62px,10.5vmin,96px);
     border: 2px dashed rgba(212,175,55,0.4);
     border-radius: 8px;
     background: rgba(212,175,55,0.04);
     display: flex; align-items: center; justify-content: center;
     position: relative; overflow: visible; flex-shrink: 0;
 }
-.gate-frame .gate-inner-text { color: rgba(212,175,55,0.3); font-size: clamp(8px,1.5vmin,11px); }
+.gate-frame .gate-inner-text { color: rgba(212,175,55,0.3); font-size: clamp(7px,1.3vmin,10px); }
 #c3-in-gate { display: none; position: absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:10; }
 
-/* ── 牌堆（3D 厚度） ── */
+/* 牌堆 */
 #deck-stack {
     position: relative;
-    width:  clamp(52px, 9vmin, 76px);
-    height: clamp(74px,13vmin,108px);
+    width:  clamp(44px, 7.5vmin, 68px);
+    height: clamp(62px,10.5vmin,96px);
     cursor: default; flex-shrink: 0;
 }
 .dk { position:absolute; width:100%; height:100%; border-radius:8px; border:1.5px solid #3a6a9f; }
@@ -196,7 +211,7 @@ html, body {
     background: linear-gradient(135deg,#2a4f80,#1e3a64);
     box-shadow: 3px 3px 10px rgba(0,0,0,0.7);
     display:flex; align-items:center; justify-content:center;
-    font-size: clamp(18px,4vmin,30px); color:rgba(255,255,255,0.25);
+    font-size: clamp(15px,3.2vmin,26px); color:rgba(255,255,255,0.25);
 }
 #deck-stack.can-click { cursor: pointer; animation: deckPulse 1s ease-in-out infinite; }
 #deck-stack.can-click .dk:nth-child(3) {
@@ -207,71 +222,149 @@ html, body {
 @keyframes deckPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.09);} }
 #deck-badge {
     position:absolute; bottom:-8px; right:-8px; z-index:6;
-    background:var(--gold); color:#1a472a; font-size:10px; font-weight:bold;
-    border-radius:10px; padding:1px 6px;
+    background:var(--gold); color:#1a472a; font-size:9px; font-weight:bold;
+    border-radius:10px; padding:1px 5px;
 }
 #deck-hint {
     position: absolute;
-    bottom: -22px; left: 50%; transform: translateX(-50%);
+    bottom: -20px; left: 50%; transform: translateX(-50%);
     white-space: nowrap;
-    font-size: clamp(8px,1.6vmin,11px); color:var(--gold);
+    font-size: clamp(7px,1.4vmin,10px); color:var(--gold);
     opacity:0; transition:opacity 0.3s; pointer-events:none;
 }
 #deck-hint.show { opacity:1; }
 
-/* ── 座位系統 ── */
+/* ════════════════════════════════════════
+   座位系統
+════════════════════════════════════════ */
 .seat { position:absolute; transform:translate(-50%,-50%); z-index:20; text-align:center; }
 .seat-box {
     background: rgba(0,0,0,0.82);
     border: 2px solid #555; border-radius: 10px;
-    padding: 4px 8px;
-    font-size: clamp(8px,1.7vmin,12px);
-    min-width: clamp(52px,10vmin,88px);
-    max-width: clamp(60px,12vmin,96px);
-    line-height: 1.35; white-space: nowrap;
+    padding: 3px 7px;
+    font-size: clamp(7px,1.5vmin,11px);
+    min-width: clamp(46px,9vmin,80px);
+    max-width: clamp(54px,10vmin,88px);
+    line-height: 1.3; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis;
 }
 .seat-box.active { border-color:var(--gold); box-shadow:0 0 10px var(--gold); background:rgba(212,175,55,0.12); }
 .seat-box.is-me  { border-color:#3498db; }
 .seat-box.active.is-me { border-color:var(--gold); }
 .seat-name { font-weight:bold; }
-.seat-bal  { color:#2ecc71; font-size:clamp(7px,1.5vmin,11px); }
-.seat-tmr  { color:#ff7675; font-size:clamp(6px,1.3vmin,10px); }
-.seat-kick { position:absolute; top:-5px; right:-5px; background:#e74c3c; color:white; border-radius:50%; width:17px; height:17px; border:1px solid white; display:none; cursor:pointer; font-size:10px; line-height:15px; z-index:25; }
+.seat-bal  { color:#2ecc71; font-size:clamp(6px,1.3vmin,10px); }
+.seat-tmr  { color:#ff7675; font-size:clamp(5px,1.1vmin,9px); }
+.seat-kick { position:absolute; top:-5px; right:-5px; background:#e74c3c; color:white; border-radius:50%; width:16px; height:16px; border:1px solid white; display:none; cursor:pointer; font-size:9px; line-height:14px; z-index:25; }
 body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 
-/* ── 下注面板（桌面底部固定欄） ── */
+/* ════════════════════════════════════════
+   ★ 下注面板：改為桌面底部橫條（嵌入 oval 內）
+   只在輪到自己 + waiting_shoot 時顯示
+════════════════════════════════════════ */
 #bet-panel {
     position: absolute;
-    bottom: 0; left: 50%;
+    bottom: 6%;          /* 橢圓底部內側 */
+    left: 50%;
     transform: translateX(-50%);
-    width: 70%;
-    display: none;
-    flex-direction: column;
+    width: 80%;
+    display: none;       /* JS 控制 */
+    flex-direction: row;
     align-items: center;
-    gap: 4px;
-    padding: 8px 12px 10px;
-    background: rgba(0,0,0,0.82);
-    border-radius: 20px 20px 0 0;
-    border: 1px solid rgba(212,175,55,0.3);
-    border-bottom: none;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px 8px;
+    background: rgba(0,0,0,0.78);
+    border-radius: 14px;
+    border: 1px solid rgba(212,175,55,0.35);
     z-index: 30;
     pointer-events: auto;
+    flex-wrap: wrap;
 }
-.chip-row { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
+
+/* 籌碼列 */
+.chip-row { display:flex; gap:4px; align-items:center; }
 .chip-btn { background:none; border:none; padding:0; cursor:pointer; }
 .chip-btn:active { transform:scale(0.88); }
-.chip-btn img { width:clamp(38px,7vmin,54px); height:clamp(38px,7vmin,54px); border-radius:50%; }
-.bet-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center; }
-#bet-amount { background:#222; color:var(--gold); border:2px solid var(--gold); font-size:1.1rem; width:80px; border-radius:8px; padding:3px 6px; text-align:center; }
-.action-row { display:flex; gap:5px; flex-wrap:wrap; justify-content:center; }
-.action-row button { padding:7px 14px; border:none; border-radius:8px; font-weight:bold; cursor:pointer; font-size:clamp(11px,1.8vmin,14px); }
+.chip-btn img {
+    width: clamp(32px,5.5vmin,46px);
+    height: clamp(32px,5.5vmin,46px);
+    border-radius:50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* 下注金額 + 動作 */
+.bet-actions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center; }
+#bet-amount {
+    background:#222; color:var(--gold);
+    border:2px solid var(--gold); font-size:0.95rem;
+    width:64px; border-radius:7px; padding:2px 5px; text-align:center;
+}
+
+.action-row { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; align-items:center; }
+.action-row button {
+    padding: 6px 10px; border:none; border-radius:7px;
+    font-weight:bold; cursor:pointer;
+    font-size: clamp(10px,1.6vmin,13px);
+    white-space: nowrap;
+}
 .btn-shoot { background:#2ecc71; color:white; }
 .btn-up    { background:#3498db; color:white; }
 .btn-down  { background:#e67e22; color:white; }
 .btn-allin { background:var(--red); color:white; }
 .btn-fold  { background:#7f8c8d; color:white; }
-.btn-clear { background:#444; color:white; }
+.btn-clear { background:#444; color:white; padding:6px 7px !important; font-size:clamp(9px,1.4vmin,12px) !important; }
+
+/* 分隔線 */
+.bet-divider { width:1px; height:36px; background:rgba(255,255,255,0.15); margin:0 2px; }
+
+/* ════════════════════════════════════════
+   ★ Emoji 按鈕：改為可摺疊
+════════════════════════════════════════ */
+#emoji-toggle {
+    position: absolute;
+    left: 10px;
+    bottom: 12px;
+    width: 36px; height: 36px;
+    background: rgba(0,0,0,0.65);
+    border: 1px solid rgba(212,175,55,0.5);
+    border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
+    z-index: 31;
+    display: none;   /* JS 控制顯示 */
+    align-items: center; justify-content: center;
+    transition: background 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+#emoji-toggle.open { background: rgba(212,175,55,0.25); border-color: var(--gold); }
+#emoji-toggle:active { transform: scale(0.9); }
+
+#emoji-bar {
+    position: absolute;
+    left: 52px;
+    bottom: 8px;
+    display: none;       /* JS 控制 */
+    gap: 5px;
+    z-index: 30;
+    pointer-events: auto;
+    background: rgba(0,0,0,0.78);
+    padding: 5px 8px;
+    border-radius: 22px;
+    border: 1px solid rgba(212,175,55,0.3);
+    /* 展開動畫 */
+    transform-origin: left center;
+    animation: emojiSlideIn 0.2s ease-out;
+}
+@keyframes emojiSlideIn {
+    from { opacity:0; transform: scaleX(0.3); }
+    to   { opacity:1; transform: scaleX(1); }
+}
+.emoji-btn {
+    font-size:1.2rem; background:none; border:none;
+    border-radius:50%; width:34px; height:34px; cursor:pointer;
+    transition: transform 0.15s;
+}
+.emoji-btn:active { transform: scale(1.3); }
 
 /* ── 右下角工具列 ── */
 #tools {
@@ -280,33 +373,47 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
     gap: 5px; z-index: 30; align-items: flex-end;
     pointer-events: auto;
 }
-.tool-btn { background:rgba(0,0,0,0.6); border:1px solid #555; color:var(--gold); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:clamp(10px,1.8vmin,13px); white-space:nowrap; }
+.tool-btn { background:rgba(0,0,0,0.6); border:1px solid #555; color:var(--gold); border-radius:20px; padding:5px 10px; cursor:pointer; font-size:clamp(9px,1.6vmin,12px); white-space:nowrap; }
 .tool-btn:active { filter:brightness(1.3); }
 
-/* ── Emoji 列（左下角） ── */
-#emoji-bar {
-    position:absolute; bottom:10px; left:10px;
-    display:none; gap:6px; z-index:30;
-    pointer-events:auto;
+/* ════════════════════════════════════════
+   Canvas & Overlays（橫向修正）
+════════════════════════════════════════ */
+#shot-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 7000;
+    /* 配合 portrait 旋轉 */
 }
-.emoji-btn { font-size:1.4rem; background:rgba(0,0,0,0.5); border:1px solid #555; border-radius:50%; width:38px; height:38px; cursor:pointer; }
+@media (orientation: portrait) {
+    #shot-canvas {
+        width: 100vh;
+        height: 100vw;
+        top: 0; left: 0;
+        transform-origin: 0 0;
+        transform: rotate(90deg) translateX(0) translateY(-100%);
+    }
+}
 
-/* ── Canvas & Overlays ── */
-#shot-canvas { position:fixed; inset:0; pointer-events:none; z-index:7000; }
-
+/* result-banner 橫向居中 */
 #result-banner {
     display:none; position:fixed; top:50%; left:50%;
     transform:translate(-50%,-50%) scale(0.5);
     z-index:8000; background:rgba(0,0,0,0.93);
-    border-radius:20px; padding:18px 36px;
+    border-radius:20px; padding:14px 28px;
     border:3px solid var(--gold); text-align:center;
     transition:transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.35s;
     opacity:0; pointer-events:none;
 }
 #result-banner.show { display:block; transform:translate(-50%,-50%) scale(1); opacity:1; }
-.rb-emoji  { font-size:2.8rem; }
-.rb-text   { font-size:1.6rem; font-weight:bold; margin:4px 0; }
-.rb-amount { font-size:2rem; font-weight:bold; }
+@media (orientation: portrait) {
+    #result-banner {
+        /* 在 portrait 時調整，因為遊戲已旋轉，但 overlay 不旋轉 */
+        left: 50%; top: 50%;
+    }
+}
+.rb-emoji  { font-size:2.2rem; }
+.rb-text   { font-size:1.3rem; font-weight:bold; margin:3px 0; }
+.rb-amount { font-size:1.7rem; font-weight:bold; }
 .rb-amount.positive { color:#2ecc71; }
 .rb-amount.negative { color:var(--red); }
 
@@ -315,24 +422,49 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 
 #all-in-confirm-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:9000; flex-direction:column; justify-content:center; align-items:center; }
 #all-in-confirm-overlay.show { display:flex; }
-.allin-box { background:linear-gradient(135deg,#1a1a1a,#2c0000); border:3px solid var(--red); border-radius:24px; padding:28px 36px; text-align:center; animation:alinPop 0.3s cubic-bezier(0.175,0.885,0.32,1.275); }
+.allin-box { background:linear-gradient(135deg,#1a1a1a,#2c0000); border:3px solid var(--red); border-radius:24px; padding:22px 30px; text-align:center; animation:alinPop 0.3s cubic-bezier(0.175,0.885,0.32,1.275); }
 @keyframes alinPop { from{transform:scale(0.6);opacity:0;} to{transform:scale(1);opacity:1;} }
-.allin-box h2 { font-size:1.8rem; color:var(--red); margin-bottom:6px; }
-.allin-box p  { color:#ccc; margin-bottom:14px; }
-.allin-amount { font-size:2.2rem; color:var(--gold); font-weight:bold; margin-bottom:18px; }
-.allin-yes { background:var(--red)!important; color:white!important; font-size:1rem!important; padding:10px 24px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
-.allin-no  { background:#555!important; color:white!important; font-size:1rem!important; padding:10px 24px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
+.allin-box h2 { font-size:1.5rem; color:var(--red); margin-bottom:6px; }
+.allin-box p  { color:#ccc; margin-bottom:12px; }
+.allin-amount { font-size:2rem; color:var(--gold); font-weight:bold; margin-bottom:16px; }
+.allin-yes { background:var(--red)!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
+.allin-no  { background:#555!important; color:white!important; font-size:1rem!important; padding:9px 20px!important; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin:0 6px; }
 
 #all-in-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.96); z-index:9999; flex-direction:column; justify-content:center; align-items:center; }
 #all-in-overlay h1 { color:var(--gold); margin-top:20px; }
 
-#my-turn-toast { display:none; position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:var(--gold); color:#1a472a; font-weight:bold; font-size:1rem; padding:9px 26px; border-radius:30px; z-index:8500; box-shadow:0 4px 20px rgba(0,0,0,0.6); animation:toastBounce 0.4s ease-out; }
-@keyframes toastBounce { from{transform:translateX(-50%) translateY(30px);opacity:0;} to{transform:translateX(-50%) translateY(0);opacity:1;} }
+#my-turn-toast {
+    display:none; position:fixed;
+    /* 橫屏時放在畫面右側中央比較不被遮擋 */
+    top: 50%; right: 12px;
+    transform: translateY(-50%) translateX(60px);
+    background:var(--gold); color:#1a472a; font-weight:bold; font-size:0.9rem;
+    padding:8px 18px; border-radius:30px; z-index:8500;
+    box-shadow:0 4px 20px rgba(0,0,0,0.6);
+    animation: toastSlideIn 0.4s ease-out forwards;
+}
+@keyframes toastSlideIn {
+    from { transform: translateY(-50%) translateX(60px); opacity:0; }
+    to   { transform: translateY(-50%) translateX(0); opacity:1; }
+}
+@media (orientation: portrait) {
+    #my-turn-toast {
+        /* portrait 模式（遊戲旋轉）：toast 放在原始螢幕頂部 */
+        top: auto; right: auto;
+        bottom: 80px; left: 50%;
+        transform: translateX(-50%) translateY(30px);
+        animation: toastBounce 0.4s ease-out forwards;
+    }
+    @keyframes toastBounce {
+        from{transform:translateX(-50%) translateY(30px);opacity:0;}
+        to{transform:translateX(-50%) translateY(0);opacity:1;}
+    }
+}
 
-#refill-toast { display:none; position:fixed; top:60px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); color:var(--gold); border:2px solid var(--gold); font-size:0.9rem; padding:8px 20px; border-radius:20px; z-index:8500; white-space:nowrap; }
+#refill-toast { display:none; position:fixed; top:14px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.92); color:var(--gold); border:2px solid var(--gold); font-size:0.85rem; padding:7px 18px; border-radius:20px; z-index:8500; white-space:nowrap; }
 
 #emoji-broadcast-area { position:fixed; top:30%; left:50%; transform:translate(-50%,-50%); pointer-events:none; z-index:10000; }
-.broadcast-item { background:rgba(0,0,0,0.88); color:var(--gold); padding:8px 18px; border-radius:30px; margin-bottom:5px; font-weight:bold; border:2px solid var(--gold); animation:fadeUp 2.5s forwards; }
+.broadcast-item { background:rgba(0,0,0,0.88); color:var(--gold); padding:7px 16px; border-radius:30px; margin-bottom:5px; font-weight:bold; border:2px solid var(--gold); animation:fadeUp 2.5s forwards; white-space:nowrap; }
 @keyframes fadeUp { 0%{opacity:0;transform:translateY(10px);} 15%{opacity:1;transform:translateY(0);} 80%{opacity:1;} 100%{opacity:0;transform:translateY(-15px);} }
 
 /* 卡牌勝負動畫 */
@@ -354,22 +486,22 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 
 <div id="result-banner">
     <div class="rb-emoji" id="rb-emoji">🎉</div>
-    <div class="rb-text"  id="rb-text">射進！</div>
+    <div class="rb-text"  id="rb-text">射進!</div>
     <div class="rb-amount" id="rb-amount">+$0</div>
 </div>
 
 <div id="all-in-confirm-overlay">
     <div class="allin-box">
         <h2>🔥 ALL IN 確認</h2>
-        <p>你確定要押上全部彩金？</p>
+        <p>你確定要押上全部彩金?</p>
         <div class="allin-amount" id="allin-pool-preview">$0</div>
-        <div><button class="allin-yes" onclick="confirmAllIn()">💥 我要全部！</button><button class="allin-no" onclick="cancelAllIn()">取消</button></div>
+        <div><button class="allin-yes" onclick="confirmAllIn()">💥 我要全部!</button><button class="allin-no" onclick="cancelAllIn()">取消</button></div>
     </div>
 </div>
 
-<div id="all-in-overlay"><div id="video-box"></div><h1>我要全部！！！</h1></div>
+<div id="all-in-overlay"><div id="video-box"></div><h1>我要全部!!!</h1></div>
 <div id="refill-toast"></div>
-<div id="my-turn-toast">🎯 輪到你了！</div>
+<div id="my-turn-toast">🎯 輪到你了!</div>
 
 <audio id="sfx-win"   src="sfx/win.mp3"   preload="auto"></audio>
 <audio id="sfx-lose"  src="sfx/lose.mp3"  preload="auto"></audio>
@@ -378,7 +510,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
 <audio id="sfx-allin" src="sfx/allin.mp3" preload="auto"></audio>
 <audio id="sfx-deal"  src="sfx/deal.mp3"  preload="auto"></audio>
 
-<!-- ══ 登入畫面 ══ -->
+<!-- ══ 登入畫面（不動） ══ -->
 <div id="setup-screen">
     <h1>🏟️ 埔墘金龍門 Pro</h1>
     <div class="setup-box">
@@ -416,7 +548,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
     <div id="table-wrap">
         <div id="oval">
 
-            <!-- 桌面中央：彩金 + 牌行 + 牌堆 -->
+            <!-- 桌面中央 -->
             <div id="table-center">
                 <div id="pool-display">💰 $<span id="pool-val">0</span></div>
                 <div id="status-msg"></div>
@@ -445,8 +577,10 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
                         <div id="c2" class="card hidden">?</div>
                     </div>
 
-                    <!-- 牌堆（與門柱並排） -->
-                    <div style="width:2px;height:60px;background:rgba(255,255,255,0.1);margin:0 4px;align-self:center;flex-shrink:0;"></div>
+                    <!-- 分隔 -->
+                    <div style="width:2px;height:50px;background:rgba(255,255,255,0.1);margin:0 3px;align-self:center;flex-shrink:0;"></div>
+
+                    <!-- 牌堆 -->
                     <div class="post-wrap" style="position:relative;">
                         <div class="post-label" id="cards-left-lbl" style="color:#aaa;">牌庫</div>
                         <div id="deck-stack" onclick="onDeckClick()">
@@ -458,43 +592,53 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
                     </div>
                 </div>
 
-                <!-- 剩餘牌數 -->
-                <div style="font-size:clamp(8px,1.5vmin,11px);color:#888;margin-top:2px;">剩 <span id="cards-left">0</span> 張</div>
+                <div style="font-size:clamp(7px,1.3vmin,10px);color:#888;margin-top:1px;">剩 <span id="cards-left">0</span> 張</div>
             </div>
 
             <!-- 座位層 -->
             <div id="seats-layer"></div>
 
-            <!-- 下注面板（桌面底部） -->
+            <!-- ★ 下注面板：在桌面底部，非自己回合隱藏 -->
             <div id="bet-panel">
+                <!-- 籌碼 -->
                 <div class="chip-row">
-                    <button class="chip-btn" onclick="addBet(10)"><img src="pic/m10.jpg"></button>
-                    <button class="chip-btn" onclick="addBet(50)"><img src="pic/m50.jpg"></button>
-                    <button class="chip-btn" onclick="addBet(100)"><img src="pic/m100.jpg"></button>
-                    <button class="chip-btn" onclick="addBet(500)"><img src="pic/m500.jpg"></button>
-                    <button class="chip-btn" onclick="addBet(1000)"><img src="pic/m1000.jpg"></button>
+                    <button class="chip-btn" onclick="addBet(10)"><img src="pic/m10.jpg" onerror="this.style.cssText='width:34px;height:34px;border-radius:50%;background:#27ae60;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;'; this.outerHTML='<div onclick=\'addBet(10)\' style=\'width:34px;height:34px;border-radius:50%;background:#27ae60;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>10</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(50)"><img src="pic/m50.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(50)\' style=\'width:34px;height:34px;border-radius:50%;background:#2980b9;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>50</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(100)"><img src="pic/m100.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(100)\' style=\'width:34px;height:34px;border-radius:50%;background:#8e44ad;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>100</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(500)"><img src="pic/m500.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(500)\' style=\'width:34px;height:34px;border-radius:50%;background:#e67e22;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>500</div>'"></button>
+                    <button class="chip-btn" onclick="addBet(1000)"><img src="pic/m1000.jpg" onerror="this.parentElement.innerHTML='<div onclick=\'addBet(1000)\' style=\'width:34px;height:34px;border-radius:50%;background:#c0392b;display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:white;cursor:pointer;\'>1K</div>'"></button>
                 </div>
-                <div class="bet-row">
-                    <span style="font-size:0.85rem;color:#aaa;">下注：</span>
+
+                <div class="bet-divider"></div>
+
+                <!-- 金額 + 清除 -->
+                <div class="bet-actions">
                     <input type="number" id="bet-amount" value="0" readonly>
-                    <button class="btn-clear" onclick="document.getElementById('bet-amount').value=0">清空</button>
+                    <button class="btn-clear" onclick="document.getElementById('bet-amount').value=0">✕</button>
                 </div>
+
+                <div class="bet-divider"></div>
+
+                <!-- 動作按鈕 -->
                 <div class="action-row">
-                    <button class="btn-shoot" id="shoot-normal" onclick="handleAction('shoot')">🎯 射門</button>
                     <button class="btn-up"   id="btn-up"   onclick="handleAction('up')"   style="display:none;">⬆ 猜大</button>
                     <button class="btn-down" id="btn-down" onclick="handleAction('down')" style="display:none;">⬇ 猜小</button>
                     <button class="btn-allin" onclick="setAllIn()">💥 ALL IN</button>
-                    <button class="btn-fold"  onclick="handleAction('fold')">🏳 放棄($<span id="fold-cost-ui">0</span>)</button>
+                    <button class="btn-fold"  onclick="handleAction('fold')">🏳 棄牌($<span id="fold-cost-ui">0</span>)</button>
                 </div>
             </div>
 
-            <!-- Emoji 列（左下角） -->
+            <!-- ★ Emoji 開關按鈕 -->
+            <button id="emoji-toggle" onclick="toggleEmojiBar()" title="表情符號">😄</button>
+
+            <!-- ★ Emoji 展開列（點 toggle 才顯示） -->
             <div id="emoji-bar">
                 <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
                 <button class="emoji-btn" onclick="sendEmoji('🔥')">🔥</button>
                 <button class="emoji-btn" onclick="sendEmoji('💸')">💸</button>
                 <button class="emoji-btn" onclick="sendEmoji('💩')">💩</button>
                 <button class="emoji-btn" onclick="sendEmoji('🃏')">🃏</button>
+                <button class="emoji-btn" onclick="sendEmoji('👑')">👑</button>
             </div>
 
             <!-- 右下角工具列 -->
@@ -506,7 +650,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
     </div><!-- /table-wrap -->
 </div><!-- /game-screen -->
 
-<!-- 以下保留舊版 DOM（JS 仍會操作這些 ID，但視覺上隱藏） -->
+<!-- 舊版保留 DOM -->
 <div style="display:none;">
     <div id="setup-area"></div>
     <div id="main-board">
@@ -540,6 +684,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
     let lastEmojiTime = 0;
     let serverOffset = 0;
     let wasMyturn = false;
+    let emojiBarOpen = false;
     const labels = {1:'A', 11:'J', 12:'Q', 13:'K'};
 
     db.ref(".info/serverTimeOffset").on("value", s => serverOffset = s.val());
@@ -553,42 +698,76 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
         el.play().catch(() => {});
     }
 
-    /* ── 飛牌動畫 ── */
+    /* ── ★ Emoji 摺疊 ── */
+    function toggleEmojiBar() {
+        emojiBarOpen = !emojiBarOpen;
+        const bar = document.getElementById('emoji-bar');
+        const btn = document.getElementById('emoji-toggle');
+        if (emojiBarOpen) {
+            bar.style.display = 'flex';
+            btn.classList.add('open');
+            btn.innerText = '✕';
+        } else {
+            bar.style.display = 'none';
+            btn.classList.remove('open');
+            btn.innerText = '😄';
+        }
+    }
+
+    /* ── 飛牌動畫（已針對橫屏尺寸調整） ── */
     function animateShotCard(cardData, resultType, onDone) {
         const canvas = document.getElementById('shot-canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+
+        /* 直屏模式：canvas 跟遊戲畫面一樣旋轉了，所以 canvas 尺寸用 vh/vw 反轉 */
+        const isPortrait = window.innerHeight > window.innerWidth;
+        if (isPortrait) {
+            canvas.width  = window.innerHeight;
+            canvas.height = window.innerWidth;
+        } else {
+            canvas.width  = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
 
         const gateEl = document.getElementById('gate-frame');
         const gateRect = gateEl.getBoundingClientRect();
-        const gateX = gateRect.left + gateRect.width / 2;
-        const gateY = gateRect.top + gateRect.height / 2;
-
+        const deckEl = document.getElementById('deck-stack');
+        const deckRect = deckEl.getBoundingClientRect();
         const c1Rect = document.getElementById('c1').getBoundingClientRect();
         const c2Rect = document.getElementById('c2').getBoundingClientRect();
-        const leftPostX  = c1Rect.left + c1Rect.width / 2;
-        const rightPostX = c2Rect.left + c2Rect.width / 2;
+
+        /* 直屏時座標要轉換（90度旋轉） */
+        function tr(rect) {
+            if (!isPortrait) return { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+            /* rotate 90 cw: newX = origY, newY = canvasH - origX */
+            return {
+                x: rect.top  + rect.height/2,
+                y: canvas.height - (rect.left + rect.width/2)
+            };
+        }
+
+        const gate   = tr(gateRect);
+        const deck   = tr(deckRect);
+        const lpost  = tr(c1Rect);
+        const rpost  = tr(c2Rect);
 
         const isRed = cardData.suit === '♥' || cardData.suit === '♦';
-        const cardW = 70, cardH = 100;
+        const cardW = 60, cardH = 86;
 
-        // 飛牌從牌堆位置出發
-        const deckRect = document.getElementById('deck-stack').getBoundingClientRect();
-        let startX = deckRect.left + deckRect.width / 2;
-        let startY = deckRect.top  + deckRect.height / 2;
-
+        let startX = deck.x, startY = deck.y;
         let endX, endY;
         if (resultType === 'win') {
-            endX = gateX; endY = gateY;
+            endX = gate.x; endY = gate.y;
         } else if (resultType === 'crash') {
-            endX = Math.random() > 0.5 ? leftPostX : rightPostX; endY = gateY;
+            const post = Math.random() > 0.5 ? lpost : rpost;
+            endX = post.x; endY = post.y;
         } else {
-            endX = Math.random() > 0.5 ? -cardW : canvas.width + cardW; endY = gateY - 40;
+            endX = Math.random() > 0.5 ? -cardW : canvas.width + cardW;
+            endY = gate.y - 40;
         }
 
         const cpX = (startX + endX) / 2 + (Math.random() - 0.5) * 80;
-        const cpY = Math.min(startY, endY) - 160;
+        const cpY = Math.min(startY, endY) - 130;
         let t = 0, rotation = 0;
         const duration = 50;
 
@@ -598,19 +777,18 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
             roundRect(ctx, -cardW/2, -cardH/2, cardW, cardH, 8);
             ctx.fill(); ctx.stroke();
             ctx.fillStyle = isRed ? '#e74c3c' : '#000';
-            ctx.font = `bold 22px 'Segoe UI'`;
+            ctx.font = `bold 20px 'Segoe UI'`;
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(cardData.suit, 0, -12);
-            ctx.fillText(cardData.label.toString(), 0, 16);
+            ctx.fillText(cardData.suit, 0, -10);
+            ctx.fillText(cardData.label.toString(), 0, 14);
             ctx.restore();
         }
-        function roundRect(ctx, x, y, w, h, r) {
-            ctx.beginPath();
-            ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-            ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-            ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-            ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
-            ctx.closePath();
+        function roundRect(c, x, y, w, h, r) {
+            c.beginPath();
+            c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+            c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+            c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
+            c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
         }
 
         let particles = [];
@@ -665,7 +843,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
         setTimeout(()=>{b.classList.remove('show');setTimeout(()=>b.style.display='none',400);},2800);
     }
 
-    /* ── 彩紙 ── */
+    /* ── 彩紙（直接貼到 body，不走旋轉） ── */
     function spawnConfetti(count) {
         const cols=['#f1c40f','#2ecc71','#3498db','#e74c3c','#9b59b6','#fff'];
         for(let i=0;i<count;i++){
@@ -686,7 +864,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
     let refillTimer=null;
     function showRefillToast(fee,count){
         const t=document.getElementById('refill-toast');
-        t.innerText=`💰 池金不足，每人補底 $${fee}（共補 $${fee*count}）`;
+        t.innerText=`💰 池金不足,每人補底 $${fee}(共補 $${fee*count})`;
         t.style.display='block';clearTimeout(refillTimer);refillTimer=setTimeout(()=>t.style.display='none',3500);
     }
 
@@ -699,7 +877,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
         const n = pKeys.length;
         if (n === 0) return;
         const myIdx = pKeys.indexOf(myId);
-        const rx = 43, ry = 40;
+        const rx = 42, ry = 38;
 
         pKeys.forEach((id, i) => {
             const p = localData.players[id];
@@ -742,13 +920,13 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
             const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
             if (bet < 1 || bet > localData.pool) {
                 const h = document.getElementById('deck-hint');
-                h.innerText = '⚠️ 請先下注！'; h.classList.add('show');
+                h.innerText = '⚠️ 請先下注!'; h.classList.add('show');
                 setTimeout(()=>{h.innerText='下注後點擊射門';},1500); return;
             }
             if (isSame) {
                 const h = document.getElementById('deck-hint');
-                h.innerText = '⚠️ 請先猜大或猜小'; h.classList.add('show');
-                setTimeout(()=>{h.innerText='下注後點擊射門';},1500);
+                h.innerText = '⚠️ 請猜大或猜小'; h.classList.add('show');
+                setTimeout(()=>{h.innerText='猜大/猜小';},1500);
             } else {
                 handleAction('shoot');
             }
@@ -783,8 +961,8 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
         renderSeats();
     },1000);
 
-    /* ── 進場（原版，不動） ── */
-    function togglePlayers(){}  // 已棄用，保留不報錯
+    /* ── 進場 ── */
+    function togglePlayers(){}
 
     function joinRoom() {
         const name = document.getElementById('my-name').value.trim();
@@ -825,7 +1003,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
                 lastEmojiTime = localData.lastEmoji.time;
             }
 
-            // 廣播飛牌
+            /* 廣播飛牌 */
             if (localData.lastShot && localData.lastShot.id !== lastShotId) {
                 const shot = localData.lastShot;
                 lastShotId = shot.id;
@@ -853,10 +1031,14 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
             }
 
             if (localData.gameStarted) {
-                // 切換到橫屏遊戲畫面
                 document.getElementById('setup-screen').style.display = 'none';
                 document.getElementById('game-screen').style.display = 'block';
-                document.getElementById('emoji-bar').style.display = 'flex';
+                /* emoji toggle 按鈕顯示，emoji bar 預設隱藏 */
+                document.getElementById('emoji-toggle').style.display = 'flex';
+                document.getElementById('emoji-bar').style.display = 'none';
+                emojiBarOpen = false;
+                document.getElementById('emoji-toggle').classList.remove('open');
+                document.getElementById('emoji-toggle').innerText = '😄';
                 document.getElementById('tools').style.display = 'flex';
                 renderUI(isHost);
                 const isTurnNow = (localData.currentPlayerKey === myId);
@@ -865,13 +1047,12 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
             } else {
                 document.getElementById('setup-screen').style.display = 'flex';
                 document.getElementById('game-screen').style.display = 'none';
+                document.getElementById('emoji-toggle').style.display = 'none';
                 document.getElementById('emoji-bar').style.display = 'none';
                 document.getElementById('tools').style.display = 'none';
-                // 房主顯示設定面板
                 document.getElementById('host-part').style.display = isHost ? 'block' : 'none';
                 wasMyturn = false;
             }
-            // host reset btn
             const hrb = document.getElementById('host-reset-btn');
             if (hrb) hrb.style.display = isHost ? 'block' : 'none';
             renderSeats();
@@ -881,6 +1062,8 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
     /* ── Emoji ── */
     function sendEmoji(icon) {
         gameRef.update({lastEmoji:{name:localData.players[myId].name,icon,time:firebase.database.ServerValue.TIMESTAMP}});
+        /* 發完自動收起 */
+        if (emojiBarOpen) toggleEmojiBar();
     }
     function showEmojiBroadcast(name, icon) {
         const a=document.getElementById('emoji-broadcast-area');
@@ -888,7 +1071,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
         d.innerText=`${name}: ${icon}`;a.appendChild(d);setTimeout(()=>d.remove(),2500);
     }
 
-    /* ── renderPlayers（保留空函數，heartbeat 呼叫不報錯） ── */
+    /* ── renderPlayers ── */
     function renderPlayers() {}
 
     /* ── hostStartGame ── */
@@ -963,7 +1146,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
             updates.lastShot={
                 id:Date.now().toString(),shooterId:myId,card:c3,resultType,
                 emoji:resultType==='win'?'🎉':resultType==='crash'?'💥':'😭',
-                text:resultType==='win'?(type==='up'||type==='down'?'猜對！':'射進！'):resultType==='crash'?'撞柱！！':(type==='up'||type==='down'?'猜錯了':'沒進...'),
+                text:resultType==='win'?(type==='up'||type==='down'?'猜對!':'射進!'):resultType==='crash'?'撞柱!!':(type==='up'||type==='down'?'猜錯了':'沒進...'),
                 delta:deltaAmount
             };
         }
@@ -975,8 +1158,8 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
             document.getElementById('gate-inner').style.display='none';
             animateShotCard(c3,resultType,()=>{
                 updateGateCard(c3);
-                if(resultType==='win'){playSfx('sfx-win');spawnConfetti(40);showResultBanner('🎉',type==='up'?'猜對！':'射進！',deltaAmount,'win');}
-                else if(resultType==='crash'){playSfx('sfx-crash');showResultBanner('💥','撞柱！！',deltaAmount,'crash');}
+                if(resultType==='win'){playSfx('sfx-win');spawnConfetti(40);showResultBanner('🎉',type==='up'?'猜對!':'射進!',deltaAmount,'win');}
+                else if(resultType==='crash'){playSfx('sfx-crash');showResultBanner('💥','撞柱!!',deltaAmount,'crash');}
                 else{playSfx('sfx-lose');showResultBanner('😭',type==='up'||type==='down'?'猜錯了':'沒進...',deltaAmount,'lose');}
                 if(refillTriggered)showRefillToast(localData.entryFee,pKeys.length);
             });
@@ -988,13 +1171,11 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
     }
 
     function renderUI(isHost) {
-        // 彩金 + 狀態
         document.getElementById('pool-val').innerText   = localData.pool || 0;
         document.getElementById('status-msg').innerText = localData.statusMsg || "";
         document.getElementById('cards-left').innerText = localData.deck ? localData.deck.length : 0;
         document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 20;
 
-        // 更新牌面
         updateCard('c1', localData.c1);
         updateCard('c2', localData.c2);
         updateGateCard(localData.c3);
@@ -1002,7 +1183,6 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
         const isTurn = (localData.currentPlayerKey === myId);
         const isSame = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
 
-        // 牌堆狀態
         const deckEl  = document.getElementById('deck-stack');
         const hintEl  = document.getElementById('deck-hint');
         const badgeEl = document.getElementById('deck-badge');
@@ -1013,19 +1193,18 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
             hintEl.innerText='點擊抽牌'; hintEl.classList.add('show');
         } else if (isTurn && localData.gameState === 'waiting_shoot') {
             deckEl.classList.add('can-click');
-            hintEl.innerText = isSame ? '下注後猜大/猜小' : '下注後點擊射門';
+            hintEl.innerText = isSame ? '猜大/猜小' : '下注後點擊射門';
             hintEl.classList.add('show');
         } else {
             deckEl.classList.remove('can-click');
             hintEl.classList.remove('show');
         }
 
-        // 下注面板
+        /* ★ 下注面板：只在輪到自己 + waiting_shoot 時顯示 */
         const betPanel = document.getElementById('bet-panel');
         betPanel.style.display = (isTurn && localData.gameState === 'waiting_shoot') ? 'flex' : 'none';
 
-        // 射門 / 猜大小 切換
-        document.getElementById('shoot-normal').style.display = isSame ? 'none' : 'inline-block';
+        /* 射門 / 猜大小 切換（移除了原本的射門按鈕，抽牌即射門） */
         document.getElementById('btn-up').style.display   = isSame ? 'inline-block' : 'none';
         document.getElementById('btn-down').style.display = isSame ? 'inline-block' : 'none';
     }
@@ -1037,7 +1216,7 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
             gi.style.display='none';
             const isRed=c.suit==='♥'||c.suit==='♦';
             c3g.style.display='block';
-            const w='clamp(52px,9vmin,76px)',h='clamp(74px,13vmin,108px)';
+            const w='clamp(44px,7.5vmin,68px)',h='clamp(62px,10.5vmin,96px)';
             c3g.innerHTML=`<div class="card${isRed?' red':''}" style="width:${w};height:${h};">${c.suit}\n${c.label}</div>`;
         }
     }
@@ -1065,8 +1244,8 @@ body.is-host .seat:not(.is-me) .seat-kick { display:block; }
         for(let i=0;i<count;i++)suits.forEach(s=>{for(let v=1;v<=13;v++)deck.push({val:v,suit:s,label:labels[v]||v});});
         return deck.sort(()=>Math.random()-0.5);
     }
-    function kickPlayer(id){if(confirm("剔除該玩家？"))gameRef.child('players/'+id).remove();}
-    function hostResetToLobby(){if(confirm("重製大廳狀態？"))gameRef.update({gameStarted:false});}
+    function kickPlayer(id){if(confirm("剔除該玩家?"))gameRef.child('players/'+id).remove();}
+    function hostResetToLobby(){if(confirm("重製大廳狀態?"))gameRef.update({gameStarted:false});}
 </script>
 </body>
 </html>
