@@ -1458,7 +1458,7 @@ function joinRoom(){
             if(pData && !pData.kickedAt){
                 // ✅ 在玩家清單中，且未被標記踢出 → 玩家身份重連
                 myId=savedId; myRole='player'; saveMyId(name,'player');
-                lastChatTime=getServerNow();
+                lastChatTime=getServerNow(); window._joinedAt=Date.now();
                 // 更新 lastActive，確保清除任何 kickedAt 標記
                 gameRef.child('players/'+myId).update({
                     lastActive: firebase.database.ServerValue.TIMESTAMP,
@@ -1479,7 +1479,7 @@ function joinRoom(){
             } else if(sData){
                 // ✅ 在觀眾清單中 → 觀眾身份重連
                 myId=savedId; myRole='spectator'; saveMyId(name,'spectator');
-                lastChatTime=getServerNow();
+                lastChatTime=getServerNow(); window._joinedAt=Date.now();
                 gameRef.child('spectators/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
                 showReconnectToast('🔄 重連成功（觀眾）',2000);
                 startListening(); startChatListener();
@@ -1514,22 +1514,29 @@ function createNewEntry(name){
             // 遊戲進行中 → 觀眾
             const newRef=gameRef.child('spectators').push();
             myId=newRef.key; myRole='spectator'; saveMyId(name,'spectator');
-            gameRef.child('spectators/'+myId).set({name,lastActive:firebase.database.ServerValue.TIMESTAMP});
-            chatRef.push({uid:'system',text:`👁 ${name} 以觀眾身份加入`,time:firebase.database.ServerValue.TIMESTAMP});
+            window._joinedAt=Date.now();
+            gameRef.child('spectators/'+myId).set({name,lastActive:firebase.database.ServerValue.TIMESTAMP}).then(()=>{
+                chatRef.push({uid:'system',text:`👁 ${name} 以觀眾身份加入`,time:firebase.database.ServerValue.TIMESTAMP});
+                if(data.allInTrigger) lastEffectId=data.allInTrigger;
+                if(data.lastEmoji)    lastEmojiTime=data.lastEmoji.time;
+                if(data.lastShot)     lastShotId=data.lastShot.id;
+                lastChatTime=getServerNow();
+                startListening(); startChatListener();
+            });
         } else {
             // 大廳中 → 玩家
             const newRef=gameRef.child('players').push();
             myId=newRef.key; myRole='player'; saveMyId(name,'player');
-            gameRef.child('players/'+myId).set({name,balance:0,lastActive:firebase.database.ServerValue.TIMESTAMP});
-            chatRef.push({uid:'system',text:`${name} 進入大廳`,time:firebase.database.ServerValue.TIMESTAMP});
+            window._joinedAt=Date.now();
+            gameRef.child('players/'+myId).set({name,balance:0,lastActive:firebase.database.ServerValue.TIMESTAMP}).then(()=>{
+                chatRef.push({uid:'system',text:`${name} 進入大廳`,time:firebase.database.ServerValue.TIMESTAMP});
+                if(data.allInTrigger) lastEffectId=data.allInTrigger;
+                if(data.lastEmoji)    lastEmojiTime=data.lastEmoji.time;
+                if(data.lastShot)     lastShotId=data.lastShot.id;
+                lastChatTime=getServerNow();
+                startListening(); startChatListener();
+            });
         }
-
-        if(data.allInTrigger) lastEffectId=data.allInTrigger;
-        if(data.lastEmoji)    lastEmojiTime=data.lastEmoji.time;
-        if(data.lastShot)     lastShotId=data.lastShot.id;
-        lastChatTime=getServerNow();
-
-        startListening(); startChatListener();
     });
 }
 
@@ -1588,12 +1595,12 @@ function startListening(){
         const inSpectators= !!(localData.spectators && localData.spectators[myId]);
 
         if(!inPlayers && !inSpectators){
+            // 剛加入 3 秒內不觸發登出（Firebase 寫入還在路上）
+            if(window._joinedAt && Date.now()-window._joinedAt < 3000) return;
             // 用 debounce 避免原子 update 的短暫中間狀態誤觸發登出
-            // 等 800ms 再確認一次，如果還是找不到才真的登出
             if(!window._notFoundTimer){
                 window._notFoundTimer = setTimeout(()=>{
                     window._notFoundTimer=null;
-                    // 再次確認（此時 localData 已是最新）
                     const stillInP=!!(localData.players   && localData.players[myId]);
                     const stillInS=!!(localData.spectators && localData.spectators[myId]);
                     if(!stillInP && !stillInS){
