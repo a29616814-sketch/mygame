@@ -1140,7 +1140,10 @@ function sendGameChat(){
     input.value='';
 }
 
+let _chatListening=false;
 function startChatListener(){
+    if(_chatListening) return;  // 避免重複訂閱
+    _chatListening=true;
     // 監聽最後 20 條,只接收「比進入時更新的」
     chatRef.limitToLast(20).on('child_added', snap => {
         const d = snap.val();
@@ -1360,33 +1363,39 @@ function renderHostMemberMgmt(players, spectators){
         list.innerHTML='<div style="color:#666;font-size:0.78rem;">（無可管理的人員）</div>';
 }
 
-/* 房主：升觀眾為玩家 */
+/* 房主：升觀眾為玩家（原子操作：同一個 update 同時寫入+清除，消除瞬間兩邊都沒有的問題） */
 function promoteSpectator(id, name){
-    // 先取得觀眾的 lastActive 時間戳，保留身份連續性
-    gameRef.child('spectators/'+id).once('value', snap=>{
-        const s=snap.val()||{};
-        gameRef.child('spectators/'+id).remove();
-        gameRef.child('players/'+id).set({name, balance:0, lastActive:s.lastActive||getServerNow(), promoted:getServerNow()});
-        chatRef.push({uid:'system',text:`🎮 ${name} 已升為玩家`,time:firebase.database.ServerValue.TIMESTAMP});
+    const s=(localData.spectators||{})[id]||{};
+    // 一個 update 同時：players/id 寫入 + spectators/id 設為 null（刪除）
+    gameRef.update({
+        [`players/${id}`]: { name, balance:0, lastActive: s.lastActive||getServerNow() },
+        [`spectators/${id}`]: null
     });
+    chatRef.push({uid:'system',text:`🎮 ${name} 已升為玩家`,time:firebase.database.ServerValue.TIMESTAMP});
 }
 
-/* 房主：將玩家降為觀眾（不能降自己） */
+/* 房主：將玩家降為觀眾（原子操作：同一個 update 同時寫入+清除） */
 function demoteToSpectator(id, name){
     if(id===myId){ alert('不能將自己降為觀眾'); return; }
-    const pKeys=Object.keys(localData.players||{});
+    const players=localData.players||{};
+    const pKeys=Object.keys(players);
+    const p=players[id]||{};
     const wasActive=localData.currentPlayerKey===id;
-    // 如果是當前出牌者，先跳過
-    const remaining=pKeys.filter(k=>k!==id&&!(localData.players[k]||{}).kickedAt);
-    gameRef.child('players/'+id).once('value', snap=>{
-        const p=snap.val()||{};
-        gameRef.child('players/'+id).remove();
-        gameRef.child('spectators/'+id).set({name, lastActive:p.lastActive||getServerNow(), demoted:getServerNow()});
-        if(wasActive && remaining.length>0){
-            gameRef.update({gameState:'waiting_deal', currentPlayerKey:remaining[0], lastActionTime:firebase.database.ServerValue.TIMESTAMP});
-        }
-        chatRef.push({uid:'system',text:`👁 ${name} 已改為觀眾`,time:firebase.database.ServerValue.TIMESTAMP});
-    });
+    const remaining=pKeys.filter(k=>k!==id&&!players[k].kickedAt);
+
+    // 一個 update 同時：spectators/id 寫入 + players/id 設為 null（刪除）
+    const updates={
+        [`spectators/${id}`]: { name, lastActive: p.lastActive||getServerNow() },
+        [`players/${id}`]: null
+    };
+    // 如果被降的是當前出牌者，一併交棒
+    if(wasActive && remaining.length>0){
+        updates.gameState='waiting_deal';
+        updates.currentPlayerKey=remaining[0];
+        updates.lastActionTime=firebase.database.ServerValue.TIMESTAMP;
+    }
+    gameRef.update(updates);
+    chatRef.push({uid:'system',text:`👁 ${name} 已改為觀眾`,time:firebase.database.ServerValue.TIMESTAMP});
 }
 
 /* 房主：踢觀眾 */
@@ -1413,8 +1422,8 @@ function renderSpecMgmtGame(spectators){
         const s=(spectators||{})[id]; if(!s) return;
         const row=document.createElement('div');
         row.style.cssText='display:flex;align-items:center;gap:5px;margin-bottom:5px;font-size:0.82rem;';
+        // 遊戲中只能移除觀眾，不能升玩家（升降只在大廳）
         row.innerHTML=`<span style="flex:1;color:#ccc;">${s.name}</span>
-            <button style="background:#2ecc71;color:white;border:none;border-radius:5px;padding:2px 7px;font-size:0.75rem;cursor:pointer;" onclick="promoteSpectator('${id}','${s.name}')">升玩家</button>
             <button style="background:#e74c3c;color:white;border:none;border-radius:5px;padding:2px 7px;font-size:0.75rem;cursor:pointer;" onclick="kickSpectator('${id}','${s.name}')">移除</button>`;
         list.appendChild(row);
     });
@@ -1439,7 +1448,7 @@ function joinRoom(){
     const canReconnect=savedId&&savedName===name&&(now-savedTime<RECONNECT_WINDOW);
 
     if(canReconnect){
-        // 不管 savedRole 是什麼，同時查兩個路徑，以 Firebase 實際資料為準
+        // 同時查玩家和觀眾兩條路徑，以 Firebase 實際資料為準
         Promise.all([
             gameRef.child('players/'+savedId).once('value'),
             gameRef.child('spectators/'+savedId).once('value')
@@ -1447,14 +1456,19 @@ function joinRoom(){
             const pData=pSnap.val(), sData=sSnap.val();
 
             if(pData && !pData.kickedAt){
-                // 在玩家清單中 → 以玩家身份重連
+                // ✅ 在玩家清單中，且未被標記踢出 → 玩家身份重連
                 myId=savedId; myRole='player'; saveMyId(name,'player');
-                gameRef.child('players/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
+                lastChatTime=getServerNow();
+                // 更新 lastActive，確保清除任何 kickedAt 標記
+                gameRef.child('players/'+myId).update({
+                    lastActive: firebase.database.ServerValue.TIMESTAMP,
+                    kickedAt: null
+                });
                 showReconnectToast('🔄 重連成功',2000);
                 startListening(); startChatListener();
 
             } else if(pData && pData.kickedAt){
-                // 被踢中，等待移除後再新建
+                // ⏳ 被踢中（KICK_GRACE 期間），等移除後再重新加入
                 showReconnectToast('⏳ 等待座位釋放...');
                 const chk=setInterval(()=>{
                     gameRef.child('players/'+savedId).once('value',s2=>{
@@ -1463,10 +1477,11 @@ function joinRoom(){
                 },1000);
 
             } else if(sData){
-                // 在觀眾清單中 → 以觀眾身份重連
+                // ✅ 在觀眾清單中 → 觀眾身份重連
                 myId=savedId; myRole='spectator'; saveMyId(name,'spectator');
+                lastChatTime=getServerNow();
                 gameRef.child('spectators/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
-                showReconnectToast('🔄 重連成功(觀眾)',2000);
+                showReconnectToast('🔄 重連成功（觀眾）',2000);
                 startListening(); startChatListener();
 
             } else {
@@ -1474,7 +1489,9 @@ function joinRoom(){
                 createNewEntry(name);
             }
         });
-    } else { createNewEntry(name); }
+    } else {
+        createNewEntry(name);
+    }
 }
 
 function createNewEntry(name){
@@ -1552,13 +1569,17 @@ function doLeave(){
     localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
     localStorage.removeItem('dgp_myRole'); localStorage.removeItem('dgp_savedAt');
     myId=''; myName=''; myRole='player';
+    _chatListening=false; _gameListening=false;
     gameRef.off(); chatRef.off();
     showScreen('login');
     document.getElementById('my-name').value='';
 }
 
 /* ════ 主監聽 ════ */
+let _gameListening=false;
 function startListening(){
+    if(_gameListening){ gameRef.off(); } // 先關舊的再重開
+    _gameListening=true;
     gameRef.on('value',snap=>{
         localData=snap.val()||{};
 
@@ -1567,13 +1588,27 @@ function startListening(){
         const inSpectators= !!(localData.spectators && localData.spectators[myId]);
 
         if(!inPlayers && !inSpectators){
-            // 被完全移除（踢出或玩家全離開）→ 回登入
-            localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
-            localStorage.removeItem('dgp_myRole'); localStorage.removeItem('dgp_savedAt');
-            gameRef.off(); chatRef.off();
-            showScreen('login'); document.getElementById('my-name').value='';
+            // 用 debounce 避免原子 update 的短暫中間狀態誤觸發登出
+            // 等 800ms 再確認一次，如果還是找不到才真的登出
+            if(!window._notFoundTimer){
+                window._notFoundTimer = setTimeout(()=>{
+                    window._notFoundTimer=null;
+                    // 再次確認（此時 localData 已是最新）
+                    const stillInP=!!(localData.players   && localData.players[myId]);
+                    const stillInS=!!(localData.spectators && localData.spectators[myId]);
+                    if(!stillInP && !stillInS){
+                        localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
+                        localStorage.removeItem('dgp_myRole'); localStorage.removeItem('dgp_savedAt');
+                        _chatListening=false; _gameListening=false;
+                        gameRef.off(); chatRef.off();
+                        showScreen('login'); document.getElementById('my-name').value='';
+                    }
+                }, 800);
+            }
             return;
         }
+        // 找到了，清掉 debounce timer
+        if(window._notFoundTimer){ clearTimeout(window._notFoundTimer); window._notFoundTimer=null; }
 
         // 房主升降後，本地 myRole 跟著自動修正
         if(inPlayers && myRole!=='player'){
@@ -1681,8 +1716,11 @@ function startListening(){
 
 /* ════ 心跳 & 自動清理 ════ */
 setInterval(()=>{
-    if(myId&&localData.players&&localData.players[myId])
+    if(!myId) return;
+    if(myRole==='player' && localData.players && localData.players[myId])
         gameRef.child('players/'+myId).update({lastActive:getServerNow()});
+    else if(myRole==='spectator' && localData.spectators && localData.spectators[myId])
+        gameRef.child('spectators/'+myId).update({lastActive:getServerNow()});
 },5000);
 
 setInterval(()=>{
