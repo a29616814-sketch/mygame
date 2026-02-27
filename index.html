@@ -528,9 +528,47 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 .anim-lose{ animation:losePulse 0.7s ease-out; }
 .anim-crash{ animation:crashPulse 0.7s ease-out; }
 #main-board,#player-area-wrapper,.player-toggle-btn{ display:none!important; }
+
+/* ════ 觀眾 ════ */
+.lobby-player-item.is-spectator{ border-color:rgba(52,152,219,0.35); background:rgba(52,152,219,0.06); }
+.spectator-tag{ font-size:0.68rem; color:#74b9ff; background:rgba(52,152,219,0.22); border-radius:4px; padding:1px 5px; margin-left:3px; }
+#spectator-notice{ display:none; padding:7px 12px; background:rgba(52,152,219,0.1); border-top:1px solid rgba(52,152,219,0.3); font-size:0.82rem; color:#74b9ff; flex-shrink:0; }
+#spectator-notice button{ background:#3498db; color:white; border:none; border-radius:7px; padding:4px 12px; font-size:0.8rem; cursor:pointer; margin-left:8px; }
+#spectator-watermark{ display:none; position:fixed; top:max(var(--safe-top),8px); left:50%; transform:translateX(-50%); background:rgba(52,152,219,0.2); border:1px solid rgba(52,152,219,0.5); color:#74b9ff; font-size:0.75rem; padding:3px 14px; border-radius:20px; z-index:8000; pointer-events:none; letter-spacing:1px; }
+/* 房主觀眾管理 */
+#spectator-mgmt{ display:none; background:rgba(52,152,219,0.07); border:1px solid rgba(52,152,219,0.3); border-radius:8px; padding:7px 10px; margin-bottom:6px; }
+#spectator-mgmt .smgmt-title{ color:#74b9ff; font-size:0.78rem; margin-bottom:5px; }
+#spectator-mgmt-list .smgmt-row{ display:flex; align-items:center; gap:5px; margin-bottom:4px; font-size:0.82rem; }
+#spectator-mgmt-list .smgmt-name{ flex:1; color:#ccc; }
+#spectator-mgmt-list button{ font-size:0.75rem; padding:2px 8px; border:none; border-radius:5px; cursor:pointer; }
+.btn-promote{ background:#2ecc71; color:white; }
+.btn-kick-spec{ background:#e74c3c; color:white; }
+/* 結算覆蓋層 */
+#gameover-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93); z-index:9800; flex-direction:column; align-items:center; justify-content:center; }
+#gameover-overlay.show{ display:flex; }
+#gameover-box{ background:linear-gradient(135deg,#111,#0d2a0d); border:3px solid var(--gold); border-radius:24px; padding:22px 30px; text-align:center; max-width:min(400px,92vw); width:100%; box-shadow:0 0 40px rgba(212,175,55,0.3); }
+#gameover-box h2{ color:var(--gold); font-size:1.35rem; margin-bottom:12px; }
+.rank-row{ display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-radius:8px; margin-bottom:4px; font-size:0.95rem; }
+.rank-row.rank-1st{ background:rgba(212,175,55,0.18); }
+.rank-row .rank-name{ font-weight:bold; }
+.rank-row .rank-bal{ font-weight:bold; }
+.rank-row .rank-bal.pos{ color:#2ecc71; }
+.rank-row .rank-bal.neg{ color:#e74c3c; }
+#gameover-box p{ color:#aaa; font-size:0.85rem; margin-top:12px; }
     </style>
 </head>
 <body>
+<div id="spectator-watermark">👁 觀眾模式</div>
+
+<!-- 結算覆蓋 -->
+<div id="gameover-overlay">
+  <div id="gameover-box">
+    <h2>🏆 本局結算</h2>
+    <div id="gameover-rankings"></div>
+    <p>回到大廳，等待房主開新局...</p>
+  </div>
+</div>
+
 <canvas id="shot-canvas"></canvas>
 <div id="emoji-broadcast-area"></div>
 <div id="reconnect-toast"></div>
@@ -588,10 +626,12 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
         <button class="lobby-leave-btn" onclick="leaveRoom()">🚪 離開</button>
     </div>
     <div id="lobby-body">
-        <!-- 玩家列表 -->
+        <!-- 玩家/觀眾列表 -->
         <div id="lobby-players-panel">
-            <h3>👥 玩家 (<span id="lobby-player-count">0</span>)</h3>
-            <div id="lobby-player-list"></div>
+            <h3 style="color:#aaa;font-size:0.8rem;padding:8px 12px 4px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;">🎮 玩家 (<span id="lobby-player-count">0</span>)</h3>
+            <div id="lobby-player-list" style="flex:1;overflow-y:auto;padding:6px 8px;"></div>
+            <h3 style="color:#74b9ff;font-size:0.78rem;padding:6px 12px 3px;border-top:1px solid rgba(52,152,219,0.2);border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0;">👁 觀眾 (<span id="lobby-spectator-count">0</span>)</h3>
+            <div id="lobby-spectator-list" style="overflow-y:auto;padding:4px 8px;max-height:90px;"></div>
         </div>
         <!-- 右側聊天+開局 -->
         <div id="lobby-right">
@@ -601,6 +641,10 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
                     <input type="text" id="lobby-chat-input" placeholder="說點什麼..." maxlength="60" onkeydown="if(event.key==='Enter')sendLobbyChat()">
                     <button id="lobby-chat-send" onclick="sendLobbyChat()">➤</button>
                 </div>
+            </div>
+            <!-- 觀眾通知欄（觀眾才看到） -->
+            <div id="spectator-notice">
+                👁 你是觀眾，只能看遊戲及聊天。<button onclick="requestJoin()">📢 申請加入</button>
             </div>
             <!-- 房主設定(只有房主看到) -->
             <div id="lobby-host-controls" style="display:none;">
@@ -622,8 +666,13 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
                     </div>
                     <div style="justify-content:flex-end;flex-direction:row;align-items:center;gap:6px;padding-top:14px;">
                         <input type="checkbox" id="auto-refill" checked>
-                        <label style="color:#aaa;font-size:0.78rem;">自動補底</label>
+                        <label style="color:#aaa;font-size:0.78rem;">池低補底</label>
                     </div>
+                </div>
+                <!-- 觀眾管理（房主看到，有觀眾時才顯示） -->
+                <div id="spectator-mgmt">
+                    <div class="smgmt-title">👁 觀眾管理（拉升為玩家）</div>
+                    <div id="spectator-mgmt-list"></div>
                 </div>
                 <button class="btn-main" onclick="hostStartGame()">✅ 開始遊戲</button>
             </div>
@@ -832,7 +881,7 @@ const gameRef  = db.ref('dragonGate/room1');
 const chatRef  = db.ref('dragonGate/chat');
 
 /* ════ 全域狀態 ════ */
-let myId='', myName='', localData={};
+let myId='', myName='', myRole='player', localData={};  // myRole: 'player' | 'spectator'
 let lastEffectId='INITIAL', lastShotId='INITIAL', lastEmojiTime=0;
 let serverOffset=0, wasMyturn=false, emojiBarOpen=false;
 let gameChatOpen=false, chatUnreadCount=0;
@@ -1220,21 +1269,73 @@ function renderSeats(){
     }
 }
 
-/* ════ 大廳玩家列表渲染 ════ */
-function renderLobbyPlayers(){
-    if(!localData.players) return;
-    const pKeys=Object.keys(localData.players);
+/* ════ 大廳玩家/觀眾列表渲染 ════ */
+function renderLobbyPlayers(players, spectators, isHost){
+    players   = players   || localData.players   || {};
+    spectators= spectators|| localData.spectators|| {};
+    const pKeys=Object.keys(players);
+    const sKeys=Object.keys(spectators);
+
     document.getElementById('lobby-player-count').innerText=pKeys.length;
-    const list=document.getElementById('lobby-player-list');
-    list.innerHTML='';
+    document.getElementById('lobby-spectator-count').innerText=sKeys.length;
+
+    const pList=document.getElementById('lobby-player-list');
+    pList.innerHTML='';
     pKeys.forEach((id,i)=>{
-        const p=localData.players[id];
-        const isMe=(id===myId), isHost=(i===0);
+        const p=players[id], isMe=(id===myId), isH=(i===0);
         const div=document.createElement('div');
-        div.className='lobby-player-item'+(isHost?' is-host':'')+(isMe?' is-me':'');
-        div.innerHTML=`<span class="lobby-player-dot"></span><span class="lobby-player-name">${p.name}</span>${isHost?'<span class="lobby-player-crown">👑</span>':''}${isMe?'<span style="color:#74b9ff;font-size:0.75rem;">(我)</span>':''}`;
-        list.appendChild(div);
+        div.className='lobby-player-item'+(isH?' is-host':'')+(isMe?' is-me':'');
+        div.innerHTML=`<span class="lobby-player-dot"></span><span class="lobby-player-name">${p.name}</span>${isH?'<span class="lobby-player-crown">👑</span>':''}${isMe?'<span style="color:#74b9ff;font-size:0.75rem;">(我)</span>':''}`;
+        pList.appendChild(div);
     });
+
+    const sList=document.getElementById('lobby-spectator-list');
+    sList.innerHTML='';
+    sKeys.forEach(id=>{
+        const s=spectators[id], isMe=(id===myId&&myRole==='spectator');
+        const div=document.createElement('div');
+        div.className='lobby-player-item is-spectator'+(isMe?' is-me':'');
+        div.innerHTML=`<span class="lobby-player-dot" style="background:#3498db;"></span><span class="lobby-player-name">${s.name}</span><span class="spectator-tag">觀眾</span>${isMe?'<span style="color:#74b9ff;font-size:0.75rem;">(我)</span>':''}`;
+        sList.appendChild(div);
+    });
+}
+
+/* ── 房主：觀眾管理（升為玩家）── */
+function renderSpectatorMgmt(spectators){
+    const box=document.getElementById('spectator-mgmt');
+    const list=document.getElementById('spectator-mgmt-list');
+    const sKeys=Object.keys(spectators||{});
+    if(sKeys.length===0){ box.style.display='none'; return; }
+    box.style.display='block';
+    list.innerHTML='';
+    sKeys.forEach(id=>{
+        const s=(spectators||{})[id];
+        if(!s) return;
+        const row=document.createElement('div');
+        row.className='smgmt-row';
+        row.innerHTML=`<span class="smgmt-name">${s.name}</span>
+            <button class="btn-promote" onclick="promoteSpectator('${id}','${s.name}')">升為玩家</button>
+            <button class="btn-kick-spec" onclick="kickSpectator('${id}','${s.name}')">移除</button>`;
+        list.appendChild(row);
+    });
+}
+
+/* 房主：升觀眾為玩家 */
+function promoteSpectator(id, name){
+    gameRef.child('spectators/'+id).remove();
+    gameRef.child('players/'+id).set({name, balance:0, lastActive:getServerNow()});
+    chatRef.push({uid:'system',text:`👑 ${name} 已加入為玩家`,time:firebase.database.ServerValue.TIMESTAMP});
+}
+
+/* 房主：踢觀眾 */
+function kickSpectator(id, name){
+    gameRef.child('spectators/'+id).remove();
+    chatRef.push({uid:'system',text:`${name} 被移出觀眾席`,time:firebase.database.ServerValue.TIMESTAMP});
+}
+
+/* 觀眾申請加入 */
+function requestJoin(){
+    chatRef.push({uid:'system',text:`📢 ${myName}(觀眾) 申請成為玩家，請房主在房主設定升級`,time:firebase.database.ServerValue.TIMESTAMP});
 }
 
 /* ════ 加入房間 ════ */
@@ -1244,64 +1345,88 @@ function joinRoom(){
     if(!name) return alert('請輸入暱稱');
     myName=name;
 
-    const savedId=localStorage.getItem('dgp_myId');
+    const savedId  =localStorage.getItem('dgp_myId');
     const savedName=localStorage.getItem('dgp_myName');
+    const savedRole=localStorage.getItem('dgp_myRole')||'player';
     const savedTime=parseInt(localStorage.getItem('dgp_savedAt')||'0');
     const now=Date.now();
     const canReconnect=savedId&&savedName===name&&(now-savedTime<RECONNECT_WINDOW);
 
     if(canReconnect){
-        gameRef.child('players/'+savedId).once('value',snap=>{
+        // 先嘗試玩家重連
+        gameRef.child('players/'+savedId).once('value', snap=>{
             const existing=snap.val();
             if(existing&&!existing.kickedAt){
-                myId=savedId; saveMyId(name);
+                myId=savedId; myRole='player'; saveMyId(name,'player');
                 gameRef.child('players/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
                 showReconnectToast('🔄 重連成功',2000);
-                startListening();
+                startListening(); startChatListener();
             } else if(existing&&existing.kickedAt){
                 showReconnectToast('⏳ 等待座位釋放...');
                 const chk=setInterval(()=>{
                     gameRef.child('players/'+savedId).once('value',s2=>{
-                        if(!s2.val()){ clearInterval(chk); hideReconnectToast(); createNewPlayer(name); }
+                        if(!s2.val()){ clearInterval(chk); hideReconnectToast(); createNewEntry(name); }
                     });
                 },1000);
-            } else { createNewPlayer(name); }
+            } else {
+                // 嘗試觀眾重連
+                gameRef.child('spectators/'+savedId).once('value', snap2=>{
+                    const ex2=snap2.val();
+                    if(ex2){
+                        myId=savedId; myRole='spectator'; saveMyId(name,'spectator');
+                        gameRef.child('spectators/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
+                        showReconnectToast('🔄 重連成功(觀眾)',2000);
+                        startListening(); startChatListener();
+                    } else { createNewEntry(name); }
+                });
+            }
         });
-    } else { createNewPlayer(name); }
+    } else { createNewEntry(name); }
 }
 
-function createNewPlayer(name){
+function createNewEntry(name){
     gameRef.once('value',snap=>{
         const data=snap.val()||{};
         const players=data.players||{};
+        const spectators=data.spectators||{};
         const now=getServerNow();
+
+        // 清理過期玩家
         Object.keys(players).forEach(id=>{
             const p=players[id];
             if(!p.kickedAt&&(!p.lastActive||now-p.lastActive>70000)) gameRef.child('players/'+id).remove();
         });
         const pKeys=Object.keys(players).filter(id=>!players[id].kickedAt||(now-players[id].kickedAt<KICK_GRACE));
-        if(pKeys.length===0) gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null});
+        if(pKeys.length===0&&Object.keys(spectators).length===0)
+            gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null});
 
-        const newRef=gameRef.child('players').push();
-        myId=newRef.key; saveMyId(name);
-        gameRef.child('players/'+myId).set({name,balance:0,lastActive:firebase.database.ServerValue.TIMESTAMP});
+        if(data.gameStarted){
+            // 遊戲進行中 → 觀眾
+            const newRef=gameRef.child('spectators').push();
+            myId=newRef.key; myRole='spectator'; saveMyId(name,'spectator');
+            gameRef.child('spectators/'+myId).set({name,lastActive:firebase.database.ServerValue.TIMESTAMP});
+            chatRef.push({uid:'system',text:`👁 ${name} 以觀眾身份加入`,time:firebase.database.ServerValue.TIMESTAMP});
+        } else {
+            // 大廳中 → 玩家
+            const newRef=gameRef.child('players').push();
+            myId=newRef.key; myRole='player'; saveMyId(name,'player');
+            gameRef.child('players/'+myId).set({name,balance:0,lastActive:firebase.database.ServerValue.TIMESTAMP});
+            chatRef.push({uid:'system',text:`${name} 進入大廳`,time:firebase.database.ServerValue.TIMESTAMP});
+        }
 
         if(data.allInTrigger) lastEffectId=data.allInTrigger;
         if(data.lastEmoji)    lastEmojiTime=data.lastEmoji.time;
         if(data.lastShot)     lastShotId=data.lastShot.id;
         lastChatTime=getServerNow();
 
-        // 系統訊息
-        chatRef.push({uid:'system',text:`${name} 進入大廳`,time:firebase.database.ServerValue.TIMESTAMP});
-
-        startListening();
-        startChatListener();
+        startListening(); startChatListener();
     });
 }
 
-function saveMyId(name){
+function saveMyId(name, role){
     localStorage.setItem('dgp_myId',myId);
     localStorage.setItem('dgp_myName',name);
+    localStorage.setItem('dgp_myRole', role||myRole||'player');
     localStorage.setItem('dgp_savedAt',Date.now().toString());
 }
 
@@ -1312,29 +1437,28 @@ function leaveRoom(){
 }
 function doLeave(){
     if(!myId) return;
-    const pKeys=localData.players?Object.keys(localData.players):[];
-    const isHost=pKeys[0]===myId;
-    const wasActive=localData.currentPlayerKey===myId;
-
-    // 系統訊息
     chatRef.push({uid:'system',text:`${myName} 離開了房間`,time:firebase.database.ServerValue.TIMESTAMP});
 
-    // 移除自己
-    gameRef.child('players/'+myId).remove().then(()=>{
-        const remaining=pKeys.filter(k=>k!==myId);
-        if(remaining.length===0){
-            gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null});
-        } else if(wasActive){
-            const active=remaining.filter(k=>localData.players[k]&&!localData.players[k].kickedAt);
-            gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||remaining[0]||null,lastActionTime:firebase.database.ServerValue.TIMESTAMP});
-        }
-    });
+    if(myRole==='spectator'){
+        gameRef.child('spectators/'+myId).remove();
+    } else {
+        const pKeys=localData.players?Object.keys(localData.players):[];
+        const wasActive=localData.currentPlayerKey===myId;
+        gameRef.child('players/'+myId).remove().then(()=>{
+            const remaining=pKeys.filter(k=>k!==myId);
+            if(remaining.length===0){
+                // 玩家全部離開 → 清空觀眾並重置
+                gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null,spectators:null});
+            } else if(wasActive){
+                const active=remaining.filter(k=>localData.players[k]&&!localData.players[k].kickedAt);
+                gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||remaining[0]||null,lastActionTime:firebase.database.ServerValue.TIMESTAMP});
+            }
+        });
+    }
 
-    localStorage.removeItem('dgp_myId');
-    localStorage.removeItem('dgp_myName');
-    localStorage.removeItem('dgp_savedAt');
-    myId=''; myName='';
-
+    localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
+    localStorage.removeItem('dgp_myRole'); localStorage.removeItem('dgp_savedAt');
+    myId=''; myName=''; myRole='player';
     gameRef.off(); chatRef.off();
     showScreen('login');
     document.getElementById('my-name').value='';
@@ -1344,34 +1468,38 @@ function doLeave(){
 function startListening(){
     gameRef.on('value',snap=>{
         localData=snap.val()||{};
-        if(!localData.players||!localData.players[myId]){
-            localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName'); localStorage.removeItem('dgp_savedAt');
+
+        // ── 判斷自己身份是否仍在房內 ──
+        const amPlayer   = myRole==='player'   && localData.players   && localData.players[myId];
+        const amSpectator= myRole==='spectator' && localData.spectators && localData.spectators[myId];
+        if(!amPlayer && !amSpectator){
+            // 被移除 → 回登入
+            localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
+            localStorage.removeItem('dgp_myRole'); localStorage.removeItem('dgp_savedAt');
             gameRef.off(); chatRef.off();
             showScreen('login'); document.getElementById('my-name').value='';
             return;
         }
 
-        const pKeys=Object.keys(localData.players);
-        const isHost=(pKeys[0]===myId);
-        document.body.className=isHost?'is-host':'';
+        const players  = localData.players  || {};
+        const spectators= localData.spectators||{};
+        const pKeys    = Object.keys(players);
+        const isHost   = myRole==='player' && pKeys[0]===myId;
+        document.body.className = isHost?'is-host':'';
 
-        // 洗牌廣播（其他人洗牌時大家都看到）
-        if(localData.shufflingBy && localData.shufflingBy !== myName && !document.getElementById('shuffle-overlay').classList.contains('show')){
-            // 其他人在洗牌，顯示動畫給我看
-            const sTS = localData.shuffleTS||0;
-            if(sTS > (window._lastShuffleTS||0)){
-                window._lastShuffleTS = sTS;
-                playShuffleAnimation(()=>{}, localData.shufflingBy);
-            }
+        // ── 洗牌廣播 ──
+        if(localData.shufflingBy && localData.shufflingBy!==myName && !document.getElementById('shuffle-overlay').classList.contains('show')){
+            const sTS=localData.shuffleTS||0;
+            if(sTS>(window._lastShuffleTS||0)){ window._lastShuffleTS=sTS; playShuffleAnimation(()=>{},localData.shufflingBy); }
         }
 
-        // Emoji 廣播
+        // ── Emoji 廣播 ──
         if(localData.lastEmoji&&localData.lastEmoji.time>lastEmojiTime){
             showEmojiBroadcast(localData.lastEmoji.name,localData.lastEmoji.icon);
             lastEmojiTime=localData.lastEmoji.time;
         }
 
-        // 飛牌廣播(其他人射的)
+        // ── 飛牌廣播(其他人射的) ──
         if(localData.lastShot&&localData.lastShot.id!==lastShotId){
             const shot=localData.lastShot; lastShotId=shot.id;
             if(shot.shooterId!==myId){
@@ -1387,25 +1515,24 @@ function startListening(){
             }
         }
 
-        // ALL IN 效果（GIF + 音效）
+        // ── ALL IN 效果 ──
         if(localData.allInTrigger&&localData.allInTrigger!==lastEffectId){
             lastEffectId=localData.allInTrigger;
             document.getElementById('all-in-overlay').style.display='flex';
-            bgmDuck(true);
-            // 音效（WebAudio buffer 最可靠，不需手勢）
-            playAllinSound();
-            // GIF 動畫（只需設定 src，天生不需要手勢解鎖）
-            showAllinGif();
-            setTimeout(()=>{
-                document.getElementById('all-in-overlay').style.display='none';
-                bgmDuck(false);
-                stopAllinSound();
-                hideAllinGif();
-            }, 3000);
+            bgmDuck(true); playAllinSound(); showAllinGif();
+            setTimeout(()=>{ document.getElementById('all-in-overlay').style.display='none'; bgmDuck(false); stopAllinSound(); hideAllinGif(); },3000);
+        }
+
+        // ── 遊戲結束廣播 ──
+        if(localData.gameOverSignal && localData.gameOverSignal!==window._lastGameOverSignal){
+            window._lastGameOverSignal = localData.gameOverSignal;
+            showGameOver(localData.gameOverRankings||[]);
         }
 
         if(localData.gameStarted){
+            // ── 遊戲中 ──
             showScreen('game');
+            document.getElementById('spectator-watermark').style.display = myRole==='spectator'?'block':'none';
             document.getElementById('emoji-toggle').style.display='flex';
             document.getElementById('emoji-bar').style.display='none';
             document.getElementById('game-chat-toggle').style.display='flex';
@@ -1413,24 +1540,38 @@ function startListening(){
             emojiBarOpen=false;
             document.getElementById('emoji-toggle').classList.remove('open');
             document.getElementById('emoji-toggle').innerText='😄';
-            renderUI(isHost);
-            const isTurnNow=(localData.currentPlayerKey===myId);
+            if(myRole==='player') renderUI(isHost);
+            else renderUISpectator();   // 觀眾只渲染靜態牌面/池金
+            const isTurnNow=(myRole==='player'&&localData.currentPlayerKey===myId);
             if(isTurnNow&&!wasMyturn) showMyTurnToast();
             wasMyturn=isTurnNow;
         } else {
+            // ── 大廳 ──
             showScreen('lobby');
+            document.getElementById('spectator-watermark').style.display='none';
             document.getElementById('emoji-toggle').style.display='none';
             document.getElementById('emoji-bar').style.display='none';
             document.getElementById('game-chat-toggle').style.display='none';
             document.getElementById('tools').style.display='none';
-            document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
-            document.getElementById('lobby-waiting-msg').style.display=isHost?'none':'block';
             wasMyturn=false;
+
+            if(myRole==='player'){
+                document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
+                document.getElementById('lobby-waiting-msg').style.display=isHost?'none':'block';
+                document.getElementById('spectator-notice').style.display='none';
+                // 房主：渲染觀眾管理列表
+                if(isHost) renderSpectatorMgmt(spectators);
+            } else {
+                // 觀眾
+                document.getElementById('lobby-host-controls').style.display='none';
+                document.getElementById('lobby-waiting-msg').style.display='none';
+                document.getElementById('spectator-notice').style.display='block';
+            }
         }
 
-        document.getElementById('host-reset-btn').style.display=isHost?'block':'none';
+        document.getElementById('host-reset-btn').style.display=(isHost&&myRole==='player')?'block':'none';
         renderSeats();
-        renderLobbyPlayers();
+        renderLobbyPlayers(players, spectators, isHost);
     });
 }
 
@@ -1521,6 +1662,7 @@ function hostStartGame(){
 
 /* ════ 遊戲動作 ════ */
 function handleAction(type){
+    if(myRole==='spectator') return; // 觀眾不能操作
     let bet=Math.abs(parseInt(document.getElementById('bet-amount').value))||0;
     if(type!=='fold'&&(bet<1||bet>localData.pool)) return alert('請下注');
     let p=localData.players[myId], nBal=p.balance, nPool=localData.pool;
@@ -1551,20 +1693,57 @@ function handleAction(type){
     const myActiveIdx=active.indexOf(myId);
     const nextK=active[(myActiveIdx+1)%active.length];
 
+    // ── 更新本玩家餘額 ──
     let updates={
         [`players/${myId}/balance`]:nBal, pool:nPool, deck, c3:c3||null,
         statusMsg:msg, gameState:'waiting_deal', currentPlayerKey:nextK,
         lastActionTime:firebase.database.ServerValue.TIMESTAMP
     };
 
+    // ── 取得此次動作後各玩家餘額（用於結束判斷） ──
+    const balMap={};
+    active.forEach(k=>{ balMap[k]=(k===myId)?nBal:localData.players[k].balance; });
+
+    // ── 判斷：是否有玩家歸零以下？ ──
+    const brokeKeys=active.filter(k=>balMap[k]<=0);
+    const poolAfter=nPool;
     const minPoolNeeded=localData.entryFee*active.length;
-    const needRefill=(localData.autoRefill&&nPool<minPoolNeeded)||(nPool<=0);
-    let refillTriggered=false;
-    if(needRefill){
+
+    if(brokeKeys.length>0 && poolAfter<=0){
+        // ━━ 狀況一：池子歸零 且 有人破產 → 結局，回大廳 ━━
+        const rankings=active
+            .map(k=>({name:localData.players[k].name, balance:balMap[k]}))
+            .sort((a,b)=>b.balance-a.balance);
+
+        // 聊天室貼結算
+        let rankMsg='🏆 本局結算：';
+        rankings.forEach((r,i)=>{ rankMsg+=`\n${['🥇','🥈','🥉'][i]||`${i+1}.`} ${r.name} $${r.balance}`; });
+        chatRef.push({uid:'system',text:rankMsg,time:firebase.database.ServerValue.TIMESTAMP});
+
+        // 廣播 gameOver 訊號
+        updates.gameOverSignal=Date.now().toString();
+        updates.gameOverRankings=rankings;
+
+        // 2.5秒後重置到大廳（給動畫時間）
+        setTimeout(()=>{
+            gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null,gameOverSignal:null,gameOverRankings:null});
+        },2500);
+
+    } else if(poolAfter<=0 && active.every(k=>balMap[k]>0)){
+        // ━━ 狀況二：池子歸零，但所有人都有錢 → 自動補底（無論 autoRefill 設定） ━━
         let total=0;
-        active.forEach(k=>{ const cb=(k===myId)?nBal:localData.players[k].balance; updates[`players/${k}/balance`]=cb-localData.entryFee; total+=localData.entryFee; });
-        updates.pool=nPool+total; refillTriggered=true;
+        active.forEach(k=>{ updates[`players/${k}/balance`]=balMap[k]-localData.entryFee; total+=localData.entryFee; });
+        updates.pool=poolAfter+total;
+        showRefillToast(localData.entryFee,active.length);
+
+    } else if(localData.autoRefill && poolAfter>0 && poolAfter<minPoolNeeded){
+        // ━━ 狀況三（autoRefill開啟）：池子>0但低於底線 → 補底 ━━
+        let total=0;
+        active.forEach(k=>{ updates[`players/${k}/balance`]=balMap[k]-localData.entryFee; total+=localData.entryFee; });
+        updates.pool=poolAfter+total;
+        showRefillToast(localData.entryFee,active.length);
     }
+    // ━━ 狀況四（autoRefill關閉）：池子>0但低 → 不補，繼續玩直到歸零 ━━
 
     if(type!=='fold'&&c3){
         updates.lastShot={
@@ -1585,12 +1764,10 @@ function handleAction(type){
             if(resultType==='win'){ playSfx('sfx-win'); spawnConfetti(40); showResultBanner('🎉',type==='up'?'猜對!':'射進!',deltaAmount,'win'); }
             else if(resultType==='crash'){ playSfx('sfx-crash'); showResultBanner('💥','撞柱!!',deltaAmount,'crash'); }
             else{ playSfx('sfx-lose'); showResultBanner('😭',type==='up'||type==='down'?'猜錯了':'沒進...',deltaAmount,'lose'); }
-            if(refillTriggered) showRefillToast(localData.entryFee,active.length);
         });
     } else {
         playSfx('sfx-fold');
         showResultBanner('🏳️','棄牌',deltaAmount,'fold');
-        if(refillTriggered) showRefillToast(localData.entryFee,active.length);
     }
 }
 
@@ -1822,7 +1999,40 @@ function renderUI(isHost){
     document.getElementById('btn-down').style.display = isSame ? 'inline-block' : 'none';
 }
 
-/* ════ 牌區更新 ════ */
+/* ════ 觀眾模式 UI（只看不操作）════ */
+function renderUISpectator(){
+    renderPoolChips(localData.pool||0);
+    document.getElementById('status-msg').innerText=localData.statusMsg||'';
+    document.getElementById('cards-left').innerText=localData.deck?localData.deck.length:0;
+    updateCard('c1',localData.c1); updateCard('c2',localData.c2); updateGateCard(localData.c3);
+    document.getElementById('bet-panel').style.display='none';
+    const deckEl=document.getElementById('deck-stack');
+    deckEl.classList.remove('can-click');
+    document.getElementById('deck-hint').classList.remove('show');
+    document.getElementById('deck-badge').innerText=localData.deck?localData.deck.length:0;
+}
+
+/* ════ 遊戲結束結算 ════ */
+let _gameOverShown=false;
+function showGameOver(rankings){
+    if(_gameOverShown) return;
+    _gameOverShown=true;
+    const box=document.getElementById('gameover-rankings');
+    box.innerHTML='';
+    rankings.forEach((r,i)=>{
+        const row=document.createElement('div');
+        row.className='rank-row'+(i===0?' rank-1st':'');
+        const medal=['🥇','🥈','🥉'][i]||`${i+1}.`;
+        const balClass=r.balance>=0?'pos':'neg';
+        row.innerHTML=`<span class="rank-name">${medal} ${r.name}</span><span class="rank-bal ${balClass}">$${r.balance}</span>`;
+        box.appendChild(row);
+    });
+    document.getElementById('gameover-overlay').classList.add('show');
+    setTimeout(()=>{
+        document.getElementById('gameover-overlay').classList.remove('show');
+        _gameOverShown=false;
+    },6000);
+}
 function updateGateCard(c){
     const gi=document.getElementById('gate-inner'), c3g=document.getElementById('c3-in-gate');
     if(!c){ gi.style.display=''; gi.innerText='待射門'; c3g.style.display='none'; c3g.innerHTML=''; }
@@ -2219,4 +2429,4 @@ window.addEventListener('resize', ()=>{
 });
 </script>
 </body>
-    </html>
+                        </html>
