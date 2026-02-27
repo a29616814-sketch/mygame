@@ -438,34 +438,6 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 /* Canvas */
 #shot-canvas{ position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:7000; }
 
-/* ════ 洗牌動畫 Overlay ════ */
-#shuffle-overlay{
-    display:none; position:fixed; inset:0; z-index:8800;
-    background:rgba(0,0,0,0.82); flex-direction:column;
-    align-items:center; justify-content:center; gap:16px;
-    backdrop-filter:blur(4px);
-}
-#shuffle-overlay.show{ display:flex; }
-#shuffle-stage{ position:relative; width:220px; height:140px; }
-.shuf-card{
-    position:absolute; width:54px; height:76px;
-    border-radius:7px; border:1.5px solid #3a6a9f;
-    background:linear-gradient(135deg,#2a4f80,#1e3a64);
-    box-shadow:2px 2px 8px rgba(0,0,0,0.7);
-    display:flex; align-items:center; justify-content:center;
-    font-size:1.4rem; color:rgba(255,255,255,0.18);
-    transition:transform 0.18s cubic-bezier(0.34,1.56,0.64,1), left 0.22s ease, top 0.22s ease;
-    will-change:transform,left,top;
-}
-#shuffle-label{
-    color:var(--gold); font-size:1rem; font-weight:bold;
-    letter-spacing:2px; text-shadow:0 0 12px rgba(212,175,55,0.6);
-    animation:shufflePulse 0.8s ease-in-out infinite alternate;
-}
-@keyframes shufflePulse{ from{opacity:0.7;} to{opacity:1;} }
-#shuffle-progress{ width:160px; height:4px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; }
-#shuffle-progress-bar{ height:100%; width:0%; border-radius:4px; background:linear-gradient(90deg,var(--gold),#2ecc71); transition:width 0.3s ease; }
-
 /* ════ 其他 ════ */
 
 .confetti-piece{ position:fixed; width:10px; height:14px; top:-20px; border-radius:2px; pointer-events:none; animation:confettiFall linear forwards; z-index:7999; }
@@ -499,7 +471,7 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
     letter-spacing:2px;
 }
 @keyframes allInTitle{ from{transform:scale(1);} to{transform:scale(1.06);} }
-#video-box{ position:relative; z-index:1; border-radius:16px; overflow:hidden;
+#gif-box{ position:relative; z-index:1; border-radius:16px; overflow:hidden;
     box-shadow:0 0 40px rgba(255,100,0,0.6), 0 0 80px rgba(255,0,0,0.3);
 }
 
@@ -576,7 +548,7 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
         <div><button class="allin-yes" onclick="confirmAllIn()">💥 我要全部!</button><button class="allin-no" onclick="cancelAllIn()">取消</button></div>
     </div>
 </div>
-<div id="all-in-overlay"><div id="video-box"></div><h1>我要全部!!!</h1></div>
+<div id="all-in-overlay"><div id="gif-box"></div><h1>我要全部!!!</h1></div>
 <!-- ══ 洗牌動畫 ══ -->
 <div id="shuffle-overlay">
     <div id="shuffle-stage"></div>
@@ -593,15 +565,9 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 <audio id="sfx-fold"  src="sfx/fold.mp3"  preload="auto"></audio>
 <audio id="sfx-allin" src="sfx/allin.mp3" preload="auto"></audio>
 <audio id="sfx-deal"  src="sfx/deal.mp3"  preload="auto"></audio>
-<!-- 背景音樂：請將 bgm.mp3 放到 sfx/ 目錄下 -->
-<audio id="bgm" src="sfx/bgm.mp3" preload="auto" loop></audio>
-<!-- iOS 需要 video 元素在手勢時已存在，不能動態 innerHTML 建立 -->
-<video id="allin-video" src="video/allin.mp4" playsinline webkit-playsinline preload="auto"
-    style="display:none;max-width:90vw;max-height:60vh;border-radius:12px;position:relative;z-index:1;
-    box-shadow:0 0 40px rgba(255,100,0,0.6),0 0 80px rgba(255,0,0,0.3);">
-</video>
-<!-- ALL IN 音效 MP3 備援（當影片無聲時） -->
-<audio id="sfx-allin-mp3" src="allin.mp3" preload="auto"></audio>
+<audio id="bgm"       src="sfx/bgm.mp3"   preload="auto" loop></audio>
+<!-- ALL IN GIF（取代 mp4，不需要手勢解鎖，直接控制 src） -->
+<img id="allin-gif" src="" alt="" style="display:none;max-width:88vw;max-height:55vh;border-radius:14px;position:relative;z-index:1;box-shadow:0 0 40px rgba(255,100,0,0.7),0 0 80px rgba(255,0,0,0.3);" />
 
 <!-- ══ 登入畫面 ══ -->
 <div id="login-screen">
@@ -877,19 +843,25 @@ const RECONNECT_WINDOW=60*1000, KICK_GRACE=10*1000;
 db.ref('.info/serverTimeOffset').on('value', s => serverOffset=s.val());
 function getServerNow(){ return Date.now()+serverOffset; }
 
-/* ════ 音效 & BGM (iOS/Android 完整相容) ════ */
-// iOS Safari: 音量無法透過 HTMLMediaElement.volume 控制，改用 WebAudio GainNode
-// iOS Safari: video/audio 必須在同步的用戶手勢 call stack 內呼叫 play()
+/* ════════════════════════════════════════════════════════
+   音效系統 — 徹底重寫，解決 iOS/Android ALL IN 無聲問題
+   
+   核心策略：
+   • 一般 SFX (win/lose/crash/fold/deal) → HTML <audio> 直接播，
+     第一次手勢時批量解鎖，之後隨時 play()。
+   • ALL IN SFX → WebAudio API fetch → decodeAudioData → play，
+     完全繞過 HTMLMediaElement 的手勢限制，
+     只需要 AudioContext 在手勢內 resume() 一次即可。
+   • BGM → HTML <audio> + GainNode（沿用舊方案，穩定）。
+════════════════════════════════════════════════════════ */
 
-let _audioCtx = null;
-let _bgmSource = null;
-let _bgmGain = null;
-let _bgmBuffer = null;
-let _bgmPlaying = false;
-let _bgmVol = 0.35;
-let _audioUnlocked = false;
-// 用 HTML audio 做 SFX（較簡單，unlock 後即可）
-// BGM 改用 WebAudio API 以支援 iOS 音量控制
+let _audioCtx     = null;
+let _bgmGain      = null;
+let _bgmPlaying   = false;
+let _bgmVol       = 0.35;
+let _audioUnlocked= false;
+let _allinBuf     = null;   // WebAudio 解碼後的 allin.mp3 buffer
+let _allinSrc     = null;   // 正在播的 allin AudioBufferSourceNode
 
 function getAudioCtx(){
     if(!_audioCtx){
@@ -898,16 +870,61 @@ function getAudioCtx(){
     return _audioCtx;
 }
 
+/* ── 預載 allin.mp3 → WebAudio buffer（頁面載入後靜默進行） ── */
+function preloadAllinBuffer(){
+    const ctx = getAudioCtx();
+    if(!ctx || _allinBuf) return;
+    fetch('sfx/allin.mp3')
+        .then(r=>r.arrayBuffer())
+        .then(ab=>ctx.decodeAudioData(ab))
+        .then(buf=>{ _allinBuf = buf; })
+        .catch(()=>{});   // 失敗就 fallback 到 HTML audio
+}
+
+/* ── 播放 allin（WebAudio buffer，無需手勢，最可靠） ── */
+function playAllinSound(){
+    const ctx = getAudioCtx();
+    if(!ctx) return _fallbackAllin();
+    // 確保 ctx 不是 suspended
+    if(ctx.state === 'suspended'){
+        ctx.resume().then(()=> _doPlayAllin(ctx)).catch(()=> _fallbackAllin());
+    } else {
+        _doPlayAllin(ctx);
+    }
+}
+function _doPlayAllin(ctx){
+    if(!_allinBuf){ _fallbackAllin(); return; }
+    try{
+        if(_allinSrc){ try{ _allinSrc.stop(); }catch(e){} }
+        _allinSrc = ctx.createBufferSource();
+        _allinSrc.buffer = _allinBuf;
+        _allinSrc.connect(ctx.destination);
+        _allinSrc.start(0);
+    }catch(e){ _fallbackAllin(); }
+}
+function _fallbackAllin(){
+    // HTML audio fallback（已在 unlockAudio 解鎖過）
+    const el = document.getElementById('sfx-allin');
+    if(!el) return;
+    el.currentTime = 0;
+    el.volume = 1;
+    el.play().catch(()=>{});
+}
+function stopAllinSound(){
+    if(_allinSrc){ try{ _allinSrc.stop(); }catch(e){} _allinSrc=null; }
+    const el = document.getElementById('sfx-allin');
+    if(el){ el.pause(); el.currentTime=0; }
+}
+
+/* ── 首次手勢解鎖（只執行一次） ── */
 function unlockAudio(){
     if(_audioUnlocked) return;
     _audioUnlocked = true;
 
-    // 1) 建立 AudioContext（iOS 需要在手勢內）
     const ctx = getAudioCtx();
-    if(ctx && ctx.state === 'suspended'){
-        ctx.resume().catch(()=>{});
-    }
-    // 2) 用靜音 buffer 解鎖 AudioContext
+    if(ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
+
+    // 靜音 buffer 解鎖 AudioContext
     if(ctx){
         try{
             const buf = ctx.createBuffer(1,1,22050);
@@ -915,32 +932,19 @@ function unlockAudio(){
             src.buffer=buf; src.connect(ctx.destination); src.start(0);
         }catch(e){}
     }
-    // 3) 解鎖所有 HTML audio SFX（iOS 需要在手勢內觸發過一次）
+
+    // 解鎖所有 HTML audio SFX（iOS：需在手勢 call stack 內 play 過一次）
     document.querySelectorAll('audio').forEach(el=>{
         if(el.id==='bgm') return;
-        const savedVol = el.volume;
+        const v = el.volume;
         el.volume = 0;
-        el.play().catch(()=>{}).finally(()=>{
-            el.pause(); el.currentTime=0; el.volume=savedVol||1;
-        });
+        el.play().catch(()=>{}).finally(()=>{ el.pause(); el.currentTime=0; el.volume=v||1; });
     });
-    // 4) iOS: 讓 allin-video 也在手勢內 load/解鎖
-    const vid = document.getElementById('allin-video');
-    if(vid){
-        vid.load();
-        // 靜音播一下再暫停，讓 iOS 知道這個 video 是被允許的
-        vid.muted = true;
-        vid.play().catch(()=>{}).finally(()=>{ vid.pause(); vid.currentTime=0; });
-    }
-    // 5) 嘗試啟動 BGM（WebAudio fetch）
-    startBgmWebAudio();
-}
 
-function startBgmWebAudio(){
-    const ctx = getAudioCtx();
-    if(!ctx) return;
-    // 先試用 HTML Audio element（fallback）
+    // 啟動 BGM
     startBgmHtmlFallback();
+    // 預載 allin buffer（不阻塞手勢）
+    preloadAllinBuffer();
 }
 
 function startBgmHtmlFallback(){
@@ -1026,49 +1030,7 @@ function playSfx(id){
     if(p && p.catch) p.catch(()=>{});
 }
 
-/* ════ ALL IN 音效：獨立解鎖機制 ════
-   問題根源：unlockAudio() 只跑一次，sfx-allin-mp3 不保證在那之前存在；
-   且 createMediaElementSource(bgm) 佔用了 AudioContext，其他 audio
-   在 iOS 上若沒在手勢 call stack 內 play() 過就無法播。
-   解法：每次 setAllIn 手勢當下立刻對 sfx-allin-mp3 做一次「靜音 play→pause」解鎖，
-   然後 confirmAllIn 時再 play（此時 iOS 已允許）。
-════ */
-let _allinMp3Unlocked = false;
-
-function unlockAllinMp3(){
-    const mp3 = document.getElementById('sfx-allin-mp3');
-    if(!mp3 || _allinMp3Unlocked) return;
-    // 在手勢 call stack 內：靜音播→暫停，讓 iOS 解鎖這個 audio element
-    const prev = mp3.volume;
-    mp3.volume = 0;
-    const p = mp3.play();
-    if(p && p.then){
-        p.then(()=>{ mp3.pause(); mp3.currentTime=0; mp3.volume=1; _allinMp3Unlocked=true; })
-         .catch(()=>{ mp3.volume=prev; });
-    } else {
-        mp3.pause(); mp3.currentTime=0; mp3.volume=1; _allinMp3Unlocked=true;
-    }
-}
-let _allinVideoReady = false;
-function prepareAllinVideo(){
-    // 在用戶手勢內預先 play()→pause()，讓 iOS 允許後續自動播放
-    const vid = document.getElementById('allin-video');
-    if(!vid || _allinVideoReady) return;
-    vid.muted = false; // 嘗試有聲
-    vid.currentTime = 0;
-    const p = vid.play();
-    if(p && p.then){
-        p.then(()=>{
-            _allinVideoReady = true;
-            // 立即暫停，等 Firebase 觸發時再 seek(0)+play
-            vid.pause(); vid.currentTime = 0;
-        }).catch(()=>{
-            // 無聲版 fallback
-            vid.muted = true;
-            vid.play().then(()=>{ _allinVideoReady=true; vid.pause(); vid.currentTime=0; }).catch(()=>{});
-        });
-    }
-}
+/* ── iOS All-In GIF 不需要手勢解鎖，直接操控 src 即可 ── */
 
 /* ════ 畫面切換 ════ */
 function showScreen(name){
@@ -1425,35 +1387,21 @@ function startListening(){
             }
         }
 
-        // ALL IN 影片 + 音效
+        // ALL IN 效果（GIF + 音效）
         if(localData.allInTrigger&&localData.allInTrigger!==lastEffectId){
             lastEffectId=localData.allInTrigger;
-            const vid = document.getElementById('allin-video');
-            const vbox = document.getElementById('video-box');
-            // 確保 video 在容器裡且可見
-            if(vid && !vbox.contains(vid)){
-                vbox.appendChild(vid);
-            }
-            if(vid){ vid.style.display='block'; }
             document.getElementById('all-in-overlay').style.display='flex';
             bgmDuck(true);
-            // 播放 mp3（自己觸發時 confirmAllIn 已播，但再播一次不影響；
-            //          其他人觸發時這裡負責出聲）
-            const mp3 = document.getElementById('sfx-allin-mp3');
-            if(mp3){ mp3.currentTime=0; mp3.volume=1; mp3.play().catch(()=>{}); }
-            // 影片靜音播（mp3 出聲）
-            if(vid && vid.paused){
-                vid.currentTime=0; vid.muted=true;
-                vid.play().catch(()=>{});
-            }
+            // 音效（WebAudio buffer 最可靠，不需手勢）
+            playAllinSound();
+            // GIF 動畫（只需設定 src，天生不需要手勢解鎖）
+            showAllinGif();
             setTimeout(()=>{
                 document.getElementById('all-in-overlay').style.display='none';
                 bgmDuck(false);
-                if(mp3){ mp3.pause(); mp3.currentTime=0; }
-                if(vid){ vid.pause(); vid.currentTime=0; vid.style.display='none'; }
-                // 把 video 移回 body 備用
-                document.body.appendChild(vid);
-            },2500);
+                stopAllinSound();
+                hideAllinGif();
+            }, 3000);
         }
 
         if(localData.gameStarted){
@@ -2059,49 +2007,37 @@ function spawnConfetti(count){
 function addBet(v){ let cur=parseInt(document.getElementById('bet-amount').value)||0; document.getElementById('bet-amount').value=Math.min(cur+v,localData.pool); }
 function setAllIn(){
     unlockAudio();
-    unlockAllinMp3();   // ← iOS：在同一手勢內解鎖 mp3
-    // iOS: 在按鈕手勢時預先讓 video load+解鎖
-    const vid = document.getElementById('allin-video');
-    if(vid && !_allinVideoReady){ vid.load(); }
     document.getElementById('allin-pool-preview').innerText='$'+(localData.pool||0);
     document.getElementById('all-in-confirm-overlay').classList.add('show');
 }
 function cancelAllIn(){ document.getElementById('all-in-confirm-overlay').classList.remove('show'); }
 function confirmAllIn(){
     unlockAudio();
-    /* ── ALL IN MP3 播放（三層保險）──
-       1. 直接 play()（已解鎖時直接成功）
-       2. catch → 再解鎖一次再 play（Android / 某些瀏覽器）
-       3. 仍失敗 → 靜默略過（至少影片還在） */
-    const mp3 = document.getElementById('sfx-allin-mp3');
-    if(mp3){
-        mp3.currentTime = 0;
-        mp3.volume = 1;
-        const tryPlay = () => {
-            const p = mp3.play();
-            if(p && p.catch){
-                p.catch(()=>{
-                    // 再解鎖一次（若還沒解鎖）
-                    const p2 = mp3.play();
-                    if(p2 && p2.catch) p2.catch(()=>{});
-                });
-            }
-        };
-        tryPlay();
-    }
-    // iOS 關鍵：在手勢的同一 call stack 內立刻 play video（靜音）
-    const vid = document.getElementById('allin-video');
-    if(vid){
-        vid.currentTime = 0;
-        vid.muted = true;   // 影片靜音，聲音靠 mp3
-        const vp = vid.play();
-        if(vp && vp.catch) vp.catch(()=>{});
-        vid.style.display = 'block';
-        document.getElementById('video-box').appendChild(vid);
-    }
+    // 播 ALL IN 音效（WebAudio buffer，最可靠）
+    playAllinSound();
+    // 顯示 GIF（不需手勢解鎖，直接設 src 即可播動畫）
+    showAllinGif();
     document.getElementById('all-in-confirm-overlay').classList.remove('show');
     gameRef.update({allInTrigger:getServerNow().toString()});
     document.getElementById('bet-amount').value = localData.pool;
+}
+
+/* GIF 控制：透過重設 src 讓 GIF 從頭播 */
+function showAllinGif(){
+    const gif = document.getElementById('allin-gif');
+    const box = document.getElementById('gif-box');
+    if(!gif || !box) return;
+    // 重設 src → GIF 從頭播放
+    gif.src = '';
+    // 放到 gif-box 容器
+    if(!box.contains(gif)) box.appendChild(gif);
+    gif.style.display = 'block';
+    // 用時間戳防止瀏覽器快取（讓 GIF 每次重播）
+    setTimeout(()=>{ gif.src = 'allin.gif?' + Date.now(); }, 10);
+}
+function hideAllinGif(){
+    const gif = document.getElementById('allin-gif');
+    if(gif){ gif.src=''; gif.style.display='none'; }
 }
 function hostResetToLobby(){ if(confirm('重製大廳狀態?')) gameRef.update({gameStarted:false}); }
 /* ════ 真實洗牌（Riffle Shuffle 模擬）+ 切牌 ════
@@ -2268,6 +2204,19 @@ function drawGoalPost(){
             lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'請下注後抽門牌'});
     }
 }
+
+/* ── 頁面載入後立即靜默預載 allin buffer ── */
+window.addEventListener('load', ()=>{
+    // 頁面載入後嘗試建立 AudioContext 並預載（桌機/Android 不需手勢就能 fetch decode）
+    // iOS 會在 getAudioCtx 時建立但 state=suspended，fetch 仍可執行，decode 在 resume 後生效
+    preloadAllinBuffer();
+});
+
+/* ── resize 時更新 canvas 尺寸避免飛牌座標偏移 ── */
+window.addEventListener('resize', ()=>{
+    const c = document.getElementById('shot-canvas');
+    if(c){ c.width = window.innerWidth; c.height = window.innerHeight; }
+});
 </script>
 </body>
     </html>
