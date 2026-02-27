@@ -567,6 +567,27 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 #reset-proposal-bar button{ padding:5px 18px; border:none; border-radius:8px; font-size:0.88rem; font-weight:bold; cursor:pointer; }
 #rp-veto-btn{ background:#2ecc71; color:white; }
 #rp-now-btn{ background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.4)!important; }
+/* ════ 準備系統 ════ */
+#ready-bar{
+    display:none; background:rgba(255,255,255,0.04); border-top:1px solid rgba(255,255,255,0.07);
+    padding:8px 12px; display:none; align-items:center; gap:8px; flex-wrap:wrap;
+}
+#ready-status-row{ display:flex; gap:6px; flex-wrap:wrap; flex:1; align-items:center; }
+.ready-chip{
+    display:inline-flex; align-items:center; gap:4px;
+    padding:3px 9px; border-radius:20px; font-size:0.75rem; font-weight:bold;
+    border:1px solid; transition:all 0.3s;
+}
+.ready-chip.ready{ background:rgba(46,204,113,0.2); border-color:#2ecc71; color:#2ecc71; }
+.ready-chip.not-ready{ background:rgba(255,255,255,0.06); border-color:#555; color:#888; }
+#my-ready-btn{
+    padding:6px 16px; border:none; border-radius:20px; font-size:0.82rem;
+    font-weight:bold; cursor:pointer; transition:all 0.2s; white-space:nowrap;
+}
+#my-ready-btn.ready{ background:#e74c3c; color:white; }
+#my-ready-btn.not-ready{ background:#2ecc71; color:white; }
+#host-start-hint{ font-size:0.75rem; color:#f39c12; display:none; }
+
     </style>
 </head>
 <body>
@@ -700,8 +721,18 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
                     <div id="host-member-list"></div>
                 </div>
                 <button class="btn-main" onclick="hostStartGame()">✅ 開始遊戲</button>
+                <div id="host-start-hint">⏳ 等待玩家準備中...</div>
             </div>
-            <div id="lobby-waiting-msg">⏳ 等待房主開始遊戲...<button id="lobby-propose-reset-btn" onclick="proposeReset()" style="display:none;margin-left:10px;background:rgba(192,57,43,0.7);color:white;border:none;border-radius:12px;padding:4px 10px;font-size:0.78rem;cursor:pointer;">🔄 提議重置</button></div>
+            <!-- 準備狀態列（非房主玩家看到） -->
+            <div id="ready-bar">
+                <div id="ready-status-row"></div>
+                <button id="my-ready-btn" class="not-ready" onclick="toggleReady()">✅ 準備好了</button>
+            </div>
+            <!-- 非房主等待訊息 + 提議重置 -->
+            <div id="lobby-waiting-msg" style="display:none;flex-direction:column;gap:6px;padding:8px 12px;">
+                <span style="color:#888;font-size:0.85rem;">⏳ 等待房主開始遊戲</span>
+                <button id="lobby-propose-reset-btn" onclick="proposeReset()" style="display:none;align-self:flex-start;background:rgba(192,57,43,0.65);color:white;border:1px solid rgba(192,57,43,0.8);border-radius:12px;padding:4px 12px;font-size:0.76rem;cursor:pointer;">🔄 提議重置</button>
+            </div>
         </div>
     </div>
 </div>
@@ -1774,26 +1805,25 @@ function startListening(){
 
             if(myRole==='player'){
                 document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
-                document.getElementById('lobby-waiting-msg').style.display=isHost?'none':'block';
+                // 非房主：顯示等待+準備列；房主：不顯示
+                document.getElementById('lobby-waiting-msg').style.display=isHost?'none':'flex';
                 document.getElementById('spectator-notice').style.display='none';
             } else {
-                // 觀眾
                 document.getElementById('lobby-host-controls').style.display='none';
                 document.getElementById('lobby-waiting-msg').style.display='none';
                 document.getElementById('spectator-notice').style.display='block';
             }
+            // 準備系統
+            renderReadyBar(players, isHost);
         }
 
         document.getElementById('host-reset-btn').style.display=(isHost&&myRole==='player')?'block':'none';
         document.getElementById('host-spec-btn').style.display=(isHost&&myRole==='player')?'block':'none';
-        // 提議重置：非房主玩家在遊戲中才顯示（大廳有自己的按鈕在等待訊息旁）
-        const canPropose = myId && !isHost && myRole==='player';
-        const inGame = !!localData.gameStarted;
-        document.getElementById('propose-reset-btn').style.display=(canPropose&&inGame)?'block':'none';
-        // 大廳的提議重置按鈕（等待訊息旁）
-        const lobbyProposeBtn=document.getElementById('lobby-propose-reset-btn');
-        if(lobbyProposeBtn) lobbyProposeBtn.style.display=(canPropose&&!inGame)?'inline-block':'none';
-        // 監聽提議重置廣播
+        // 提議重置：只有非房主的玩家才能看到，遊戲中在工具列，大廳在等待列
+        const canPropose=myId && !isHost && myRole==='player';
+        document.getElementById('propose-reset-btn').style.display=(canPropose&&!!localData.gameStarted)?'block':'none';
+        const lobbyBtn=document.getElementById('lobby-propose-reset-btn');
+        if(lobbyBtn) lobbyBtn.style.display=(canPropose&&!localData.gameStarted)?'inline-block':'none';
         handleResetProposal(localData.resetProposal, isHost);
         // 更新遊戲中觀眾管理列表
         if(isHost&&myRole==='player') renderSpecMgmtGame(spectators);
@@ -1895,9 +1925,13 @@ function hostStartGame(){
     const decks=parseInt(document.getElementById('deck-count').value)||2;
     const refill=document.getElementById('auto-refill').checked;
     let players=localData.players, pool=0;
-    Object.keys(players).forEach(id=>{ players[id].balance=start-fee; pool+=fee; });
+    // 開局時清除準備狀態，設定初始餘額
+    Object.keys(players).forEach(id=>{
+        players[id].balance=start-fee;
+        players[id].ready=false;
+        pool+=fee;
+    });
 
-    // 先切換到遊戲畫面讓動畫顯示
     const deckData=generateDecks(decks);
     gameRef.update({
         gameStarted:true, deck:deckData, pool, entryFee:fee,
@@ -1907,11 +1941,8 @@ function hostStartGame(){
         lastActionTime:firebase.database.ServerValue.TIMESTAMP, statusMsg:'新局開始，請洗牌'
     });
     chatRef.push({uid:'system',text:'遊戲開始！',time:firebase.database.ServerValue.TIMESTAMP});
-    // 切換後播洗牌動畫（廣播給所有人看）
     setTimeout(()=>{
-        broadcastAndShuffle(()=>{
-            gameRef.update({statusMsg:'請點牌庫發牌'});
-        });
+        broadcastAndShuffle(()=>{ gameRef.update({statusMsg:'請點牌庫發牌'}); });
     },400);
 }
 
@@ -2527,9 +2558,18 @@ function hostResetToLobby(){
 /* ════ 提議重置系統 ════ */
 let _rpTimer=null;
 
+/* ════ 提議重置（含30秒冷卻）════ */
+let _lastProposedAt=0;
+const PROPOSE_COOLDOWN=30000;
+
 function proposeReset(){
     if(!myId) return;
-    // 寫入 Firebase，所有人都會收到
+    const now=Date.now();
+    if(now-_lastProposedAt < PROPOSE_COOLDOWN){
+        const wait=Math.ceil((PROPOSE_COOLDOWN-(now-_lastProposedAt))/1000);
+        alert(`請等 ${wait} 秒再提議`); return;
+    }
+    _lastProposedAt=now;
     gameRef.update({
         resetProposal:{
             by: myName,
@@ -2538,6 +2578,72 @@ function proposeReset(){
         }
     });
     chatRef.push({uid:'system',text:`🔄 ${myName} 提議重置房間回大廳`,time:firebase.database.ServerValue.TIMESTAMP});
+    // 更新按鈕冷卻顯示
+    startProposeCooldownUI();
+}
+
+function startProposeCooldownUI(){
+    const btn1=document.getElementById('lobby-propose-reset-btn');
+    const btn2=document.getElementById('propose-reset-btn');
+    let remain=PROPOSE_COOLDOWN/1000;
+    const tick=setInterval(()=>{
+        remain--;
+        const txt=remain>0?`🔄 提議重置 (${remain}s)`:'🔄 提議重置';
+        if(btn1) btn1.innerText=txt;
+        if(btn2) btn2.innerText=txt;
+        if(remain<=0){ clearInterval(tick); }
+    },1000);
+}
+
+/* ════ 準備系統 ════ */
+function toggleReady(){
+    if(!myId||myRole!=='player') return;
+    const cur=(localData.players&&localData.players[myId]&&localData.players[myId].ready)||false;
+    gameRef.child('players/'+myId).update({ready:!cur});
+}
+
+function renderReadyBar(players, isHost){
+    const bar=document.getElementById('ready-bar');
+    const row=document.getElementById('ready-status-row');
+    const myReadyBtn=document.getElementById('my-ready-btn');
+    const hint=document.getElementById('host-start-hint');
+    if(!bar||!row) return;
+
+    if(isHost){
+        bar.style.display='none';
+        // 給房主看：所有人準備好才能開始（否則顯示提示）
+        const activeP=Object.keys(players).filter(k=>!players[k].kickedAt);
+        const others=activeP.filter(k=>k!==myId);
+        const allReady=others.length>0 && others.every(k=>players[k]&&players[k].ready);
+        if(hint){
+            hint.style.display=others.length>0?'block':'none';
+            if(others.length>0){
+                const readyCount=others.filter(k=>players[k]&&players[k].ready).length;
+                hint.innerText=allReady?'✅ 所有玩家已準備，可以開始！':`⏳ ${readyCount}/${others.length} 玩家準備中...`;
+                hint.style.color=allReady?'#2ecc71':'#f39c12';
+            }
+        }
+        return;
+    }
+
+    // 非房主：顯示準備列
+    bar.style.display='flex';
+    row.innerHTML='';
+    const activeP=Object.keys(players).filter(k=>!players[k].kickedAt)
+        .sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
+    activeP.forEach(id=>{
+        const p=players[id]; if(!p) return;
+        const chip=document.createElement('span');
+        chip.className='ready-chip '+(p.ready?'ready':'not-ready');
+        chip.innerHTML=(p.ready?'✅ ':'⏳ ')+p.name+(id===activeP[0]?' 👑':'');
+        row.appendChild(chip);
+    });
+
+    const amReady=!!(players[myId]&&players[myId].ready);
+    if(myReadyBtn){
+        myReadyBtn.className=amReady?'ready':'not-ready';
+        myReadyBtn.innerText=amReady?'❌ 取消準備':'✅ 準備好了';
+    }
 }
 
 function vetoReset(){
@@ -2774,4 +2880,4 @@ window.addEventListener('resize', ()=>{
 });
 </script>
 </body>
-    </html>
+</html>
