@@ -149,7 +149,46 @@ html,body{ width:100%; height:100%; background:#0d1f15; color:white; font-family
     display:flex; flex-direction:column; align-items:center; gap:4px;
     z-index:10; pointer-events:none;
 }
-#pool-display{ font-size:clamp(20px,4.5vmin,34px); color:#f1c40f; font-weight:bold; text-shadow:0 2px 8px rgba(0,0,0,0.8); }
+/* ════ 籌碼堆池顯示 ════ */
+#pool-display{
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    pointer-events:none;
+}
+#pool-chip-stack{
+    position:relative;
+    display:flex; flex-direction:row; align-items:flex-end; justify-content:center;
+    gap:3px; min-height:52px; min-width:40px;
+}
+/* 每一根籌碼柱 */
+.chip-col{
+    display:flex; flex-direction:column-reverse; align-items:center;
+    position:relative;
+}
+/* 單枚籌碼 SVG wrapper */
+.chip-coin{
+    display:block; margin-top:-10px; /* 疊高時重疊 */
+    position:relative;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,0.55));
+    transition:transform 0.3s ease;
+}
+.chip-coin:first-child{ margin-top:0; }
+/* 彈跳進場動畫 */
+@keyframes chipDrop{
+    0%{ transform:translateY(-30px) scale(0.7); opacity:0; }
+    60%{ transform:translateY(3px) scale(1.04); opacity:1; }
+    80%{ transform:translateY(-2px) scale(0.98); }
+    100%{ transform:translateY(0) scale(1); opacity:1; }
+}
+.chip-coin.drop{ animation:chipDrop 0.32s cubic-bezier(0.22,1,0.36,1) both; }
+/* 金額文字 */
+#pool-amount-text{
+    font-size:clamp(11px,2.2vmin,16px); color:#f1c40f; font-weight:bold;
+    text-shadow:0 1px 6px rgba(0,0,0,0.9), 0 0 12px rgba(241,196,15,0.4);
+    letter-spacing:0.5px; margin-top:2px;
+}
+/* pool-pop 仍作用在文字上 */
+@keyframes poolPop{ 0%{transform:scale(1);} 40%{transform:scale(1.22);color:#fff;} 100%{transform:scale(1);} }
+.pool-pop{ animation:poolPop 0.4s ease-out; }
 #status-msg{ font-size:clamp(8px,1.7vmin,12px); color:#ccc; min-height:14px; }
 #cards-and-deck{ display:flex; align-items:center; gap:clamp(4px,1.5vmin,12px); pointer-events:auto; }
 
@@ -330,9 +369,7 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 #bgm-vol::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; background:var(--gold); border:none; cursor:pointer; }
 #bgm-note{ font-size:0.65rem; color:rgba(212,175,55,0.7); letter-spacing:0.5px; white-space:nowrap; }
 
-/* ════ Pool 金額動畫 ════ */
-@keyframes poolPop{ 0%{transform:scale(1);} 40%{transform:scale(1.18);color:#fff;} 100%{transform:scale(1);} }
-.pool-pop{ animation:poolPop 0.4s ease-out; }
+/* ════ Pool 動畫（舊版 pool-val 已移除，保留 keyframe 給 pool-amount-text） ════ */
 
 /* ════ 座位倒計時進度條 ════ */
 .seat-timer-bar-wrap{
@@ -478,34 +515,6 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
 .chip-svg-wrap:active{ transform:scale(0.88); }
 .chip-svg{ filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5)); transition:filter 0.15s,transform 0.15s; }
 .chip-svg:hover{ filter:drop-shadow(0 0 10px rgba(212,175,55,0.7)) drop-shadow(0 3px 6px rgba(0,0,0,0.5)); transform:translateY(-2px); }
-
-/* ════ 桌面籌碼堆疊 ════ */
-#chip-stack-display{
-    display:flex; align-items:flex-end; justify-content:center;
-    gap:clamp(4px,1vmin,8px); min-height:clamp(30px,6vmin,56px);
-    pointer-events:none;
-}
-.table-chip-stack{
-    display:flex; flex-direction:column-reverse; align-items:center;
-    gap:0; position:relative;
-}
-.table-chip{
-    width:clamp(22px,4vmin,36px); height:clamp(7px,1.4vmin,12px);
-    border-radius:50%; position:relative; margin-top:clamp(-4px,-0.8vmin,-6px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25);
-    transition: transform 0.2s ease;
-}
-.table-chip::after{
-    content:''; position:absolute; inset:1px 2px; border-radius:50%;
-    border-top:1px solid rgba(255,255,255,0.18);
-}
-.table-chip-label{ display:none; }
-/* chip colors by denomination */
-.tc-10  { background:linear-gradient(180deg,#4a8fd4 0%,#1a5276 50%,#154060 100%); border:1.5px solid #3498db; }
-.tc-50  { background:linear-gradient(180deg,#a0e0f0 0%,#1a6080 50%,#154360 100%); border:1.5px solid #76d7ea; }
-.tc-100 { background:linear-gradient(180deg,#f08080 0%,#922b21 50%,#641e16 100%); border:1.5px solid #e74c3c; }
-.tc-500 { background:linear-gradient(180deg,#80e0a0 0%,#1e8449 50%,#145a32 100%); border:1.5px solid #58d68d; }
-.tc-1000{ background:linear-gradient(180deg,#f0d060 0%,#9a7d0a 50%,#7d6608 100%); border:1.5px solid #d4ac0d; }
 
 /* ════ 洗牌動畫升級 ════ */
 #shuffle-overlay{
@@ -676,8 +685,10 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
     <div id="table-wrap">
         <div id="oval">
             <div id="table-center">
-                <div id="pool-display">💰 $<span id="pool-val">0</span></div>
-                <div id="chip-stack-display"></div>
+                <div id="pool-display">
+                    <div id="pool-chip-stack"></div>
+                    <div id="pool-amount-text">💰 $0</div>
+                </div>
                 <div id="status-msg"></div>
                 <div id="cards-and-deck">
                     <div class="post-wrap"><div class="post-label">左柱</div><div id="c1" class="card hidden">?</div></div>
@@ -1638,79 +1649,159 @@ function onDeckClick(){
     }
 }
 
-/* ════ 桌面籌碼堆渲染 ════ */
-function renderChipStack(pool){
-    const container = document.getElementById('chip-stack-display');
-    if(!container) return;
-    container.innerHTML = '';
-    if(!pool || pool <= 0) return;
+/* ════ 籌碼堆渲染系統 ════ */
+// 籌碼定義：面值、顏色主題
+const CHIP_DEFS = [
+    { val:1000, fill:'#7d6608', stroke:'#f0d060', inner:'#9a7d0a', label:'1K',   dot:'#f5e97a' },
+    { val:500,  fill:'#145a32', stroke:'#58d68d', inner:'#1e8449', label:'500',  dot:'#7deba4' },
+    { val:100,  fill:'#641e16', stroke:'#e74c3c', inner:'#922b21', label:'100',  dot:'#f08070' },
+    { val:50,   fill:'#154360', stroke:'#76d7ea', inner:'#1a6080', label:'50',   dot:'#a8e8f5' },
+    { val:10,   fill:'#1a3a6e', stroke:'#3498db', inner:'#1f618d', label:'10',   dot:'#85c1e9' },
+];
 
-    // 將 pool 分解為各面值籌碼數量（貪心法）
-    const denoms = [
-        {val:1000, cls:'tc-1000', label:'1K'},
-        {val:500,  cls:'tc-500',  label:'500'},
-        {val:100,  cls:'tc-100',  label:'100'},
-        {val:50,   cls:'tc-50',   label:'50'},
-        {val:10,   cls:'tc-10',   label:'10'}
-    ];
-    let remain = pool;
-    const stacks = [];
-    denoms.forEach(d => {
-        const count = Math.floor(remain / d.val);
-        if(count > 0){ stacks.push({...d, count: Math.min(count, 12)}); remain -= d.val * count; }
-    });
-    // 如有零頭，補一個最小籌碼
-    if(remain > 0 && stacks.length === 0) stacks.push({val:10, cls:'tc-10', label:'10', count:1});
-
-    stacks.forEach(s => {
-        if(s.count === 0) return;
-        const wrap = document.createElement('div');
-        wrap.className = 'table-chip-stack';
-        for(let i = 0; i < s.count; i++){
-            const chip = document.createElement('div');
-            chip.className = 'table-chip ' + s.cls;
-            wrap.appendChild(chip);
+// 把金額分解成籌碼組合（貪心）
+function breakdownChips(amount){
+    let remaining = Math.max(0, Math.round(amount));
+    const result = [];
+    for(const chip of CHIP_DEFS){
+        if(remaining >= chip.val){
+            const count = Math.min(Math.floor(remaining / chip.val), 12); // 最多12枚一柱
+            result.push({ ...chip, count });
+            remaining -= chip.val * count;
         }
-        const lbl = document.createElement('div');
-        lbl.className = 'table-chip-label';
-        lbl.innerText = s.label + '×' + s.count;
-        wrap.appendChild(lbl);
-        container.appendChild(wrap);
+    }
+    return result;
+}
+
+// 畫單枚籌碼 SVG（超真實感：3D側面厚度 + 光澤 + 刻紋）
+function makeChipSVG(chip, size=38){
+    const r = size/2 - 2;
+    const cx = size/2, cy = size/2;
+    // 刻痕位置（8個）
+    const notchAngles = [0, 45, 90, 135, 180, 225, 270, 315];
+    const notches = notchAngles.map(deg => {
+        const rad = deg * Math.PI / 180;
+        const x1 = cx + (r-1)*Math.cos(rad), y1 = cy + (r-1)*Math.sin(rad);
+        const x2 = cx + (r+2)*Math.cos(rad), y2 = cy + (r+2)*Math.sin(rad);
+        return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${chip.dot}" stroke-width="2.5" stroke-linecap="round"/>`;
+    }).join('');
+
+    // 底部陰影（3D感）
+    const shadowR = r + 1;
+    // 文字大小
+    const fs = chip.label.length >= 3 ? size*0.22 : size*0.26;
+
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="cg_${chip.val}" cx="38%" cy="32%" r="65%">
+      <stop offset="0%" stop-color="${lighten(chip.inner,40)}"/>
+      <stop offset="45%" stop-color="${chip.inner}"/>
+      <stop offset="100%" stop-color="${darken(chip.fill,20)}"/>
+    </radialGradient>
+    <radialGradient id="shine_${chip.val}" cx="35%" cy="25%" r="55%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.38)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+  </defs>
+  <!-- 底部陰影圓 -->
+  <ellipse cx="${cx}" cy="${cy+2}" rx="${shadowR}" ry="${shadowR*0.25}" fill="rgba(0,0,0,0.35)"/>
+  <!-- 主圓盤 -->
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#cg_${chip.val})" stroke="${chip.stroke}" stroke-width="2.2"/>
+  <!-- 外環虛線 -->
+  <circle cx="${cx}" cy="${cy}" r="${r-4}" fill="none" stroke="${chip.dot}" stroke-width="1.2" stroke-dasharray="4 2.5" opacity="0.7"/>
+  <!-- 內圓 -->
+  <circle cx="${cx}" cy="${cy}" r="${r-9}" fill="${chip.inner}" opacity="0.6"/>
+  <!-- 刻痕 -->
+  ${notches}
+  <!-- 光澤 -->
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#shine_${chip.val})"/>
+  <!-- 面值文字 -->
+  <text x="${cx}" y="${cy+fs*0.38}" text-anchor="middle" fill="white"
+    font-size="${fs.toFixed(1)}" font-weight="bold" font-family="Arial,sans-serif"
+    style="text-shadow:0 1px 2px rgba(0,0,0,0.8)">${chip.label}</text>
+</svg>`;
+}
+
+// 色彩工具
+function lighten(hex, pct){
+    const n=parseInt(hex.slice(1),16);
+    const r=Math.min(255,((n>>16)&0xff)+pct), g=Math.min(255,((n>>8)&0xff)+pct), b=Math.min(255,(n&0xff)+pct);
+    return `rgb(${r},${g},${b})`;
+}
+function darken(hex, pct){
+    const n=parseInt(hex.slice(1),16);
+    const r=Math.max(0,((n>>16)&0xff)-pct), g=Math.max(0,((n>>8)&0xff)-pct), b=Math.max(0,(n&0xff)-pct);
+    return `rgb(${r},${g},${b})`;
+}
+
+let _lastPoolRendered = -1;
+function renderPoolChips(amount){
+    if(amount === _lastPoolRendered) return;
+    _lastPoolRendered = amount;
+
+    const container = document.getElementById('pool-chip-stack');
+    const textEl    = document.getElementById('pool-amount-text');
+    if(!container) return;
+
+    // 更新文字（金額）
+    if(textEl){
+        textEl.innerText = `💰 $${amount.toLocaleString()}`;
+        textEl.classList.remove('pool-pop');
+        void textEl.offsetWidth;
+        textEl.classList.add('pool-pop');
+        setTimeout(()=>textEl.classList.remove('pool-pop'), 500);
+    }
+
+    if(amount <= 0){ container.innerHTML = ''; return; }
+
+    const chips = breakdownChips(amount);
+    container.innerHTML = '';
+
+    // 動態籌碼大小（根據柱數調整）
+    const totalCols = chips.length;
+    const chipSize = totalCols > 4 ? 32 : totalCols > 3 ? 35 : 38;
+    const overlap  = Math.round(chipSize * 0.28); // 疊高重疊量
+
+    chips.forEach((chip, ci) => {
+        const col = document.createElement('div');
+        col.className = 'chip-col';
+
+        for(let i = 0; i < chip.count; i++){
+            const el = document.createElement('div');
+            el.className = 'chip-coin drop';
+            el.style.marginTop = i === 0 ? '0' : `-${overlap}px`;
+            el.style.animationDelay = `${(ci * chip.count + i) * 28}ms`;
+            el.innerHTML = makeChipSVG(chip, chipSize);
+            col.appendChild(el);
+        }
+        container.appendChild(col);
     });
 }
 
-
+/* ════ renderUI ════ */
 function renderUI(isHost){
-    const poolEl = document.getElementById('pool-val');
-    const newPool = localData.pool||0;
-    if(poolEl.innerText !== String(newPool)){
-        poolEl.innerText = newPool;
-        poolEl.classList.remove('pool-pop');
-        // reflow trick
-        void poolEl.offsetWidth;
-        poolEl.classList.add('pool-pop');
-        setTimeout(()=>poolEl.classList.remove('pool-pop'),500);
-    }
-    renderChipStack(newPool);
-    document.getElementById('status-msg').innerText=localData.statusMsg||'';
-    document.getElementById('cards-left').innerText=localData.deck?localData.deck.length:0;
-    document.getElementById('fold-cost-ui').innerText=localData.foldPenalty||20;
-    updateCard('c1',localData.c1); updateCard('c2',localData.c2); updateGateCard(localData.c3);
+    const newPool = localData.pool || 0;
+    renderPoolChips(newPool);
 
-    const isTurn=(localData.currentPlayerKey===myId);
-    const isSame=localData.c1&&localData.c2&&localData.c1.val===localData.c2.val;
-    const deckEl=document.getElementById('deck-stack');
-    const hintEl=document.getElementById('deck-hint');
-    const badgeEl=document.getElementById('deck-badge');
-    if(badgeEl) badgeEl.innerText=localData.deck?localData.deck.length:0;
+    document.getElementById('status-msg').innerText = localData.statusMsg || '';
+    document.getElementById('cards-left').innerText = localData.deck ? localData.deck.length : 0;
+    document.getElementById('fold-cost-ui').innerText = localData.foldPenalty || 20;
+    updateCard('c1', localData.c1); updateCard('c2', localData.c2); updateGateCard(localData.c3);
 
-    if(isTurn&&localData.gameState==='waiting_deal'){ deckEl.classList.add('can-click'); hintEl.innerText='點擊抽牌'; hintEl.classList.add('show'); }
-    else if(isTurn&&localData.gameState==='waiting_shoot'){ deckEl.classList.add('can-click'); hintEl.innerText=isSame?'猜大/猜小':'下注後點擊射門'; hintEl.classList.add('show'); }
+    const isTurn  = (localData.currentPlayerKey === myId);
+    const isSame  = localData.c1 && localData.c2 && localData.c1.val === localData.c2.val;
+    const deckEl  = document.getElementById('deck-stack');
+    const hintEl  = document.getElementById('deck-hint');
+    const badgeEl = document.getElementById('deck-badge');
+    if(badgeEl) badgeEl.innerText = localData.deck ? localData.deck.length : 0;
+
+    if(isTurn && localData.gameState === 'waiting_deal'){ deckEl.classList.add('can-click'); hintEl.innerText='點擊抽牌'; hintEl.classList.add('show'); }
+    else if(isTurn && localData.gameState === 'waiting_shoot'){ deckEl.classList.add('can-click'); hintEl.innerText=isSame?'猜大/猜小':'下注後點擊射門'; hintEl.classList.add('show'); }
     else{ deckEl.classList.remove('can-click'); hintEl.classList.remove('show'); }
 
-    document.getElementById('bet-panel').style.display=(isTurn&&localData.gameState==='waiting_shoot')?'flex':'none';
-    document.getElementById('btn-up').style.display=isSame?'inline-block':'none';
-    document.getElementById('btn-down').style.display=isSame?'inline-block':'none';
+    document.getElementById('bet-panel').style.display = (isTurn && localData.gameState === 'waiting_shoot') ? 'flex' : 'none';
+    document.getElementById('btn-up').style.display   = isSame ? 'inline-block' : 'none';
+    document.getElementById('btn-down').style.display = isSame ? 'inline-block' : 'none';
 }
 
 /* ════ 牌區更新 ════ */
