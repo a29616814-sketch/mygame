@@ -1219,9 +1219,15 @@ function renderSeats(){
     const pKeys=Object.keys(localData.players);
     if(pKeys.length===0) return;
 
+    // 房主 = joinedAt 最小的活躍玩家
+    const activeSorted=pKeys
+        .filter(k=>!localData.players[k].kickedAt)
+        .sort((a,b)=>(localData.players[a].joinedAt||0)-(localData.players[b].joinedAt||0));
+    const seatHostId=activeSorted[0]||null;
+
     pKeys.forEach((id,i)=>{
         const p=localData.players[id];
-        const isMe=(id===myId), isHost=(i===0);
+        const isMe=(id===myId), isHost=(id===seatHostId);
         const isActive=(id===localData.currentPlayerKey);
         const isKicked=!!p.kickedAt;
 
@@ -1284,21 +1290,22 @@ function renderSeats(){
 function renderLobbyPlayers(players, spectators, isHost){
     players   = players   || localData.players   || {};
     spectators= spectators|| localData.spectators|| {};
-    const pKeys=Object.keys(players);
-    const sKeys=Object.keys(spectators);
+    const allP=Object.keys(players);
+    const activeP=allP.filter(k=>!players[k].kickedAt)
+        .sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
+    const hostId=activeP[0]||null;
 
-    document.getElementById('lobby-player-count').innerText=pKeys.length;
-    document.getElementById('lobby-spectator-count').innerText=sKeys.length;
+    document.getElementById('lobby-player-count').innerText=activeP.length;
+    document.getElementById('lobby-spectator-count').innerText=Object.keys(spectators).length;
 
-    // ── 玩家列表（房主模式：每人有「降觀眾」按鈕，自己除外）──
+    // ── 玩家列表（跳過被踢出的）──
     const pList=document.getElementById('lobby-player-list');
     pList.innerHTML='';
-    pKeys.forEach((id,i)=>{
-        const p=players[id], isMe=(id===myId), isH=(i===0);
+    activeP.forEach(id=>{
+        const p=players[id], isMe=(id===myId), isH=(id===hostId);
         const div=document.createElement('div');
         div.className='lobby-player-item'+(isH?' is-host':'')+(isMe?' is-me':'');
         let actionBtn='';
-        // 房主且不是自己 → 可降為觀眾
         if(isHost && !isMe){
             actionBtn=`<button onclick="demoteToSpectator('${id}','${p.name}')" style="font-size:0.68rem;padding:1px 6px;background:rgba(52,152,219,0.3);border:1px solid rgba(52,152,219,0.6);color:#74b9ff;border-radius:4px;cursor:pointer;white-space:nowrap;">↓觀眾</button>`;
         }
@@ -1307,7 +1314,9 @@ function renderLobbyPlayers(players, spectators, isHost){
     });
 
     // ── 觀眾列表（房主模式：每人有「升玩家」按鈕）──
+    // ── 觀眾列表 ──
     const sList=document.getElementById('lobby-spectator-list');
+    const sKeys=Object.keys(spectators);
     sList.innerHTML='';
     sKeys.forEach(id=>{
         const s=spectators[id], isMe=(id===myId&&myRole==='spectator');
@@ -1321,25 +1330,23 @@ function renderLobbyPlayers(players, spectators, isHost){
         sList.appendChild(div);
     });
 
-    // ── 房主人員管理面板（額外的操作區）──
-    if(isHost) renderHostMemberMgmt(players, spectators);
+    if(isHost) renderHostMemberMgmt(activeP, players, spectators);
 }
 
 /* 房主人員管理面板（大廳） */
-function renderHostMemberMgmt(players, spectators){
+function renderHostMemberMgmt(activeP, players, spectators){
     const list=document.getElementById('host-member-list');
     if(!list) return;
     list.innerHTML='';
-    const pKeys=Object.keys(players||{});
     const sKeys=Object.keys(spectators||{});
 
-    if(pKeys.length<=1 && sKeys.length===0){
+    if(activeP.length<=1 && sKeys.length===0){
         list.innerHTML='<div style="color:#666;font-size:0.78rem;">（只有你一人）</div>';
         return;
     }
 
     // 玩家（自己以外）→ 可降觀眾
-    pKeys.forEach((id,i)=>{
+    activeP.forEach(id=>{
         const p=(players||{})[id]; if(!p||id===myId) return;
         const row=document.createElement('div');
         row.className='smgmt-row';
@@ -1528,7 +1535,7 @@ function createNewEntry(name){
             const newRef=gameRef.child('players').push();
             myId=newRef.key; myRole='player'; saveMyId(name,'player');
             window._joinedAt=Date.now();
-            gameRef.child('players/'+myId).set({name,balance:0,lastActive:firebase.database.ServerValue.TIMESTAMP}).then(()=>{
+            gameRef.child('players/'+myId).set({name,balance:0,joinedAt:firebase.database.ServerValue.TIMESTAMP,lastActive:firebase.database.ServerValue.TIMESTAMP}).then(()=>{
                 chatRef.push({uid:'system',text:`${name} 進入大廳`,time:firebase.database.ServerValue.TIMESTAMP});
                 if(data.allInTrigger) lastEffectId=data.allInTrigger;
                 if(data.lastEmoji)    lastEmojiTime=data.lastEmoji.time;
@@ -1554,23 +1561,35 @@ function leaveRoom(){
 }
 function doLeave(){
     if(!myId) return;
-    chatRef.push({uid:'system',text:`${myName} 離開了房間`,time:firebase.database.ServerValue.TIMESTAMP});
 
     if(myRole==='spectator'){
+        chatRef.push({uid:'system',text:`${myName} 離開了房間`,time:firebase.database.ServerValue.TIMESTAMP});
         gameRef.child('spectators/'+myId).remove();
     } else {
-        const pKeys=localData.players?Object.keys(localData.players):[];
+        const players=localData.players||{};
+        const allKeys=Object.keys(players);
         const wasActive=localData.currentPlayerKey===myId;
-        gameRef.child('players/'+myId).remove().then(()=>{
-            const remaining=pKeys.filter(k=>k!==myId);
-            if(remaining.length===0){
-                // 玩家全部離開 → 清空觀眾並重置
-                gameRef.update({gameStarted:false,c1:null,c2:null,c3:null,currentPlayerKey:null,spectators:null});
-            } else if(wasActive){
-                const active=remaining.filter(k=>localData.players[k]&&!localData.players[k].kickedAt);
-                gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||remaining[0]||null,lastActionTime:firebase.database.ServerValue.TIMESTAMP});
-            }
-        });
+        const remaining=allKeys.filter(k=>k!==myId&&!players[k].kickedAt);
+
+        // 用 multi-path update 原子刪除自己，同時處理後續狀態
+        // 這樣即使 gameRef.off() 之後還是能送出去
+        const updates={};
+        updates[`players/${myId}`]=null;  // 直接刪除自己
+
+        if(remaining.length===0){
+            updates.gameStarted=false;
+            updates.c1=null; updates.c2=null; updates.c3=null;
+            updates.currentPlayerKey=null;
+            updates.spectators=null;
+        } else if(wasActive){
+            updates.gameState='waiting_deal';
+            updates.currentPlayerKey=remaining[0];
+            updates.lastActionTime=firebase.database.ServerValue.TIMESTAMP;
+        }
+
+        // 先 push 離開訊息，然後原子 update（不等 then，直接斷線也沒關係）
+        chatRef.push({uid:'system',text:`${myName} 離開了房間`,time:firebase.database.ServerValue.TIMESTAMP});
+        gameRef.update(updates);
     }
 
     localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
@@ -1628,9 +1647,14 @@ function startListening(){
 
         const players  = localData.players  || {};
         const spectators= localData.spectators||{};
-        const pKeys    = Object.keys(players);
-        const isHost   = myRole==='player' && pKeys[0]===myId;
-        document.body.className = isHost?'is-host':'';
+        // 房主 = 活躍玩家中 joinedAt 最小的（最早進房）
+        // 若無 joinedAt（舊資料），fallback 到 Firebase key 字典順序第一個
+        const activePlayers=Object.entries(players)
+            .filter(([k,p])=>!p.kickedAt)
+            .sort(([,a],[,b])=>(a.joinedAt||0)-(b.joinedAt||0));
+        const hostId=activePlayers.length>0 ? activePlayers[0][0] : null;
+        const isHost=myRole==='player' && hostId===myId;
+        document.body.className=isHost?'is-host':'';
 
         // ── 洗牌廣播 ──
         if(localData.shufflingBy && localData.shufflingBy!==myName && !document.getElementById('shuffle-overlay').classList.contains('show')){
@@ -1731,12 +1755,17 @@ setInterval(()=>{
 },5000);
 
 setInterval(()=>{
-    if(!localData.players) return;
+    if(!localData.players||!myId||myRole!=='player') return;
     const now=getServerNow(), players=localData.players;
-    const pKeys=Object.keys(players);
-    if(pKeys[0]!==myId) return; // 只有房主執行清理
+    const allKeys=Object.keys(players);
 
-    pKeys.forEach(id=>{
+    // 房主 = 活躍玩家中 joinedAt 最小的
+    const activeSorted=allKeys
+        .filter(k=>!players[k].kickedAt)
+        .sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
+    if(activeSorted[0]!==myId) return; // 只有房主執行清理
+
+    allKeys.forEach(id=>{
         const p=players[id];
         if(p.kickedAt&&now-p.kickedAt>=KICK_GRACE){
             gameRef.child('players/'+id).remove(); return;
@@ -1749,19 +1778,20 @@ setInterval(()=>{
     if(localData.gameStarted){
         const cpKey=localData.currentPlayerKey;
         if(cpKey&&players[cpKey]&&players[cpKey].kickedAt){
-            const active=pKeys.filter(k=>!players[k].kickedAt);
+            const active=allKeys.filter(k=>!players[k].kickedAt);
             const ci=active.indexOf(cpKey);
             const nextK=active[(ci+1)%active.length]||active[0]||null;
-            gameRef.update({gameState:'waiting_deal',currentPlayerKey:nextK,lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'玩家超時,移出座位'});
+            gameRef.update({gameState:'waiting_deal',currentPlayerKey:nextK,
+                lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'玩家超時,移出座位'});
         }
         if(localData.lastActionTime){
             const diff=(now-localData.lastActionTime)/1000;
-            const cpKey=localData.currentPlayerKey;
             if(diff>60.5&&cpKey&&players[cpKey]&&!players[cpKey].kickedAt){
                 const ts=getServerNow();
                 gameRef.child('players/'+cpKey).update({kickedAt:ts}).then(()=>{
-                    const active=pKeys.filter(k=>!players[k].kickedAt&&k!==cpKey);
-                    gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||null,statusMsg:'玩家超時,移出座位',lastActionTime:firebase.database.ServerValue.TIMESTAMP});
+                    const active=allKeys.filter(k=>!players[k].kickedAt&&k!==cpKey);
+                    gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||null,
+                        statusMsg:'玩家超時,移出座位',lastActionTime:firebase.database.ServerValue.TIMESTAMP});
                 });
             }
         }
@@ -1772,13 +1802,17 @@ setInterval(()=>{
 /* ════ 踢玩家 ════ */
 function kickPlayer(id){
     if(!confirm('剔除該玩家?(10秒後移除,期間可重連)')) return;
-    gameRef.child('players/'+id).update({kickedAt:getServerNow()});
-    chatRef.push({uid:'system',text:`${localData.players[id]?.name||'玩家'} 被踢出房間`,time:firebase.database.ServerValue.TIMESTAMP});
+    const players=localData.players||{};
+    const active=Object.keys(players).filter(k=>k!==id&&!players[k].kickedAt);
+    const updates={};
+    updates[`players/${id}/kickedAt`]=getServerNow();
     if(localData.currentPlayerKey===id){
-        const pKeys=Object.keys(localData.players);
-        const active=pKeys.filter(k=>k!==id&&!localData.players[k].kickedAt);
-        gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||null,lastActionTime:firebase.database.ServerValue.TIMESTAMP});
+        updates.gameState='waiting_deal';
+        updates.currentPlayerKey=active[0]||null;
+        updates.lastActionTime=firebase.database.ServerValue.TIMESTAMP;
     }
+    gameRef.update(updates);
+    chatRef.push({uid:'system',text:`${players[id]?.name||'玩家'} 被踢出房間`,time:firebase.database.ServerValue.TIMESTAMP});
 }
 
 /* ════ 開局 ════ */
@@ -2593,4 +2627,4 @@ window.addEventListener('resize', ()=>{
 });
 </script>
 </body>
-</html>
+    </html>
