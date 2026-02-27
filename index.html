@@ -671,10 +671,10 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
                         <label style="color:#aaa;font-size:0.78rem;">池低補底</label>
                     </div>
                 </div>
-                <!-- 觀眾管理（房主看到，有觀眾時才顯示） -->
-                <div id="spectator-mgmt">
-                    <div class="smgmt-title">👁 觀眾管理（拉升為玩家）</div>
-                    <div id="spectator-mgmt-list"></div>
+                <!-- 人員管理（房主看到：玩家↔觀眾雙向切換） -->
+                <div id="host-member-mgmt" style="background:rgba(255,255,255,0.04);border:1px solid rgba(212,175,55,0.25);border-radius:8px;padding:7px 10px;margin-bottom:6px;">
+                    <div style="color:var(--gold);font-size:0.78rem;margin-bottom:6px;font-weight:bold;">👑 人員管理</div>
+                    <div id="host-member-list"></div>
                 </div>
                 <button class="btn-main" onclick="hostStartGame()">✅ 開始遊戲</button>
             </div>
@@ -1287,57 +1287,106 @@ function renderLobbyPlayers(players, spectators, isHost){
     document.getElementById('lobby-player-count').innerText=pKeys.length;
     document.getElementById('lobby-spectator-count').innerText=sKeys.length;
 
+    // ── 玩家列表（房主模式：每人有「降觀眾」按鈕，自己除外）──
     const pList=document.getElementById('lobby-player-list');
     pList.innerHTML='';
     pKeys.forEach((id,i)=>{
         const p=players[id], isMe=(id===myId), isH=(i===0);
         const div=document.createElement('div');
         div.className='lobby-player-item'+(isH?' is-host':'')+(isMe?' is-me':'');
-        div.innerHTML=`<span class="lobby-player-dot"></span><span class="lobby-player-name">${p.name}</span>${isH?'<span class="lobby-player-crown">👑</span>':''}${isMe?'<span style="color:#74b9ff;font-size:0.75rem;">(我)</span>':''}`;
+        let actionBtn='';
+        // 房主且不是自己 → 可降為觀眾
+        if(isHost && !isMe){
+            actionBtn=`<button onclick="demoteToSpectator('${id}','${p.name}')" style="font-size:0.68rem;padding:1px 6px;background:rgba(52,152,219,0.3);border:1px solid rgba(52,152,219,0.6);color:#74b9ff;border-radius:4px;cursor:pointer;white-space:nowrap;">↓觀眾</button>`;
+        }
+        div.innerHTML=`<span class="lobby-player-dot"></span><span class="lobby-player-name">${p.name}</span>${isH?'<span class="lobby-player-crown">👑</span>':''}${isMe?'<span style="color:#74b9ff;font-size:0.7rem;">(我)</span>':''}${actionBtn}`;
         pList.appendChild(div);
     });
 
+    // ── 觀眾列表（房主模式：每人有「升玩家」按鈕）──
     const sList=document.getElementById('lobby-spectator-list');
     sList.innerHTML='';
     sKeys.forEach(id=>{
         const s=spectators[id], isMe=(id===myId&&myRole==='spectator');
         const div=document.createElement('div');
         div.className='lobby-player-item is-spectator'+(isMe?' is-me':'');
-        div.innerHTML=`<span class="lobby-player-dot" style="background:#3498db;"></span><span class="lobby-player-name">${s.name}</span><span class="spectator-tag">觀眾</span>${isMe?'<span style="color:#74b9ff;font-size:0.75rem;">(我)</span>':''}`;
+        let actionBtn='';
+        if(isHost){
+            actionBtn=`<button onclick="promoteSpectator('${id}','${s.name}')" style="font-size:0.68rem;padding:1px 6px;background:rgba(46,204,113,0.25);border:1px solid rgba(46,204,113,0.5);color:#2ecc71;border-radius:4px;cursor:pointer;white-space:nowrap;">↑玩家</button>`;
+        }
+        div.innerHTML=`<span class="lobby-player-dot" style="background:#3498db;"></span><span class="lobby-player-name">${s.name}</span><span class="spectator-tag">觀眾</span>${isMe?'<span style="color:#74b9ff;font-size:0.7rem;">(我)</span>':''}${actionBtn}`;
         sList.appendChild(div);
     });
+
+    // ── 房主人員管理面板（額外的操作區）──
+    if(isHost) renderHostMemberMgmt(players, spectators);
 }
 
-/* ── 房主：觀眾管理（升為玩家）── */
-function renderSpectatorMgmt(spectators){
-    const box=document.getElementById('spectator-mgmt');
-    const list=document.getElementById('spectator-mgmt-list');
-    if(!box||!list) return;
-    const sKeys=Object.keys(spectators||{});
-    // 始終顯示這區（讓房主知道觀眾管理在哪）
-    box.style.display='block';
+/* 房主人員管理面板（大廳） */
+function renderHostMemberMgmt(players, spectators){
+    const list=document.getElementById('host-member-list');
+    if(!list) return;
     list.innerHTML='';
-    if(sKeys.length===0){
-        list.innerHTML='<div style="color:#666;font-size:0.78rem;padding:2px 0;">（目前無觀眾）</div>';
+    const pKeys=Object.keys(players||{});
+    const sKeys=Object.keys(spectators||{});
+
+    if(pKeys.length<=1 && sKeys.length===0){
+        list.innerHTML='<div style="color:#666;font-size:0.78rem;">（只有你一人）</div>';
         return;
     }
-    sKeys.forEach(id=>{
-        const s=(spectators||{})[id];
-        if(!s) return;
+
+    // 玩家（自己以外）→ 可降觀眾
+    pKeys.forEach((id,i)=>{
+        const p=(players||{})[id]; if(!p||id===myId) return;
         const row=document.createElement('div');
         row.className='smgmt-row';
-        row.innerHTML=`<span class="smgmt-name">${s.name}</span>
+        row.innerHTML=`<span class="smgmt-name">🎮 ${p.name}</span>
+            <button class="btn-kick-spec" onclick="demoteToSpectator('${id}','${p.name}')">降觀眾</button>`;
+        list.appendChild(row);
+    });
+
+    // 觀眾 → 可升玩家或移除
+    sKeys.forEach(id=>{
+        const s=(spectators||{})[id]; if(!s) return;
+        const row=document.createElement('div');
+        row.className='smgmt-row';
+        row.innerHTML=`<span class="smgmt-name">👁 ${s.name}</span>
             <button class="btn-promote" onclick="promoteSpectator('${id}','${s.name}')">升玩家</button>
             <button class="btn-kick-spec" onclick="kickSpectator('${id}','${s.name}')">移除</button>`;
         list.appendChild(row);
     });
+
+    if(list.children.length===0)
+        list.innerHTML='<div style="color:#666;font-size:0.78rem;">（無可管理的人員）</div>';
 }
 
 /* 房主：升觀眾為玩家 */
 function promoteSpectator(id, name){
-    gameRef.child('spectators/'+id).remove();
-    gameRef.child('players/'+id).set({name, balance:0, lastActive:getServerNow()});
-    chatRef.push({uid:'system',text:`👑 ${name} 已加入為玩家`,time:firebase.database.ServerValue.TIMESTAMP});
+    // 先取得觀眾的 lastActive 時間戳，保留身份連續性
+    gameRef.child('spectators/'+id).once('value', snap=>{
+        const s=snap.val()||{};
+        gameRef.child('spectators/'+id).remove();
+        gameRef.child('players/'+id).set({name, balance:0, lastActive:s.lastActive||getServerNow(), promoted:getServerNow()});
+        chatRef.push({uid:'system',text:`🎮 ${name} 已升為玩家`,time:firebase.database.ServerValue.TIMESTAMP});
+    });
+}
+
+/* 房主：將玩家降為觀眾（不能降自己） */
+function demoteToSpectator(id, name){
+    if(id===myId){ alert('不能將自己降為觀眾'); return; }
+    const pKeys=Object.keys(localData.players||{});
+    const wasActive=localData.currentPlayerKey===id;
+    // 如果是當前出牌者，先跳過
+    const remaining=pKeys.filter(k=>k!==id&&!(localData.players[k]||{}).kickedAt);
+    gameRef.child('players/'+id).once('value', snap=>{
+        const p=snap.val()||{};
+        gameRef.child('players/'+id).remove();
+        gameRef.child('spectators/'+id).set({name, lastActive:p.lastActive||getServerNow(), demoted:getServerNow()});
+        if(wasActive && remaining.length>0){
+            gameRef.update({gameState:'waiting_deal', currentPlayerKey:remaining[0], lastActionTime:firebase.database.ServerValue.TIMESTAMP});
+        }
+        chatRef.push({uid:'system',text:`👁 ${name} 已改為觀眾`,time:firebase.database.ServerValue.TIMESTAMP});
+    });
 }
 
 /* 房主：踢觀眾 */
@@ -1385,38 +1434,44 @@ function joinRoom(){
 
     const savedId  =localStorage.getItem('dgp_myId');
     const savedName=localStorage.getItem('dgp_myName');
-    const savedRole=localStorage.getItem('dgp_myRole')||'player';
     const savedTime=parseInt(localStorage.getItem('dgp_savedAt')||'0');
     const now=Date.now();
     const canReconnect=savedId&&savedName===name&&(now-savedTime<RECONNECT_WINDOW);
 
     if(canReconnect){
-        // 先嘗試玩家重連
-        gameRef.child('players/'+savedId).once('value', snap=>{
-            const existing=snap.val();
-            if(existing&&!existing.kickedAt){
+        // 不管 savedRole 是什麼，同時查兩個路徑，以 Firebase 實際資料為準
+        Promise.all([
+            gameRef.child('players/'+savedId).once('value'),
+            gameRef.child('spectators/'+savedId).once('value')
+        ]).then(([pSnap, sSnap])=>{
+            const pData=pSnap.val(), sData=sSnap.val();
+
+            if(pData && !pData.kickedAt){
+                // 在玩家清單中 → 以玩家身份重連
                 myId=savedId; myRole='player'; saveMyId(name,'player');
                 gameRef.child('players/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
                 showReconnectToast('🔄 重連成功',2000);
                 startListening(); startChatListener();
-            } else if(existing&&existing.kickedAt){
+
+            } else if(pData && pData.kickedAt){
+                // 被踢中，等待移除後再新建
                 showReconnectToast('⏳ 等待座位釋放...');
                 const chk=setInterval(()=>{
                     gameRef.child('players/'+savedId).once('value',s2=>{
                         if(!s2.val()){ clearInterval(chk); hideReconnectToast(); createNewEntry(name); }
                     });
                 },1000);
+
+            } else if(sData){
+                // 在觀眾清單中 → 以觀眾身份重連
+                myId=savedId; myRole='spectator'; saveMyId(name,'spectator');
+                gameRef.child('spectators/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
+                showReconnectToast('🔄 重連成功(觀眾)',2000);
+                startListening(); startChatListener();
+
             } else {
-                // 嘗試觀眾重連
-                gameRef.child('spectators/'+savedId).once('value', snap2=>{
-                    const ex2=snap2.val();
-                    if(ex2){
-                        myId=savedId; myRole='spectator'; saveMyId(name,'spectator');
-                        gameRef.child('spectators/'+myId).update({lastActive:firebase.database.ServerValue.TIMESTAMP});
-                        showReconnectToast('🔄 重連成功(觀眾)',2000);
-                        startListening(); startChatListener();
-                    } else { createNewEntry(name); }
-                });
+                // 兩邊都找不到 → 全新加入
+                createNewEntry(name);
             }
         });
     } else { createNewEntry(name); }
@@ -1507,16 +1562,26 @@ function startListening(){
     gameRef.on('value',snap=>{
         localData=snap.val()||{};
 
-        // ── 判斷自己身份是否仍在房內 ──
-        const amPlayer   = myRole==='player'   && localData.players   && localData.players[myId];
-        const amSpectator= myRole==='spectator' && localData.spectators && localData.spectators[myId];
-        if(!amPlayer && !amSpectator){
-            // 被移除 → 回登入
+        // ── 判斷自己身份（含房主升降後自動切換 role）──
+        const inPlayers   = !!(localData.players   && localData.players[myId]);
+        const inSpectators= !!(localData.spectators && localData.spectators[myId]);
+
+        if(!inPlayers && !inSpectators){
+            // 被完全移除（踢出或玩家全離開）→ 回登入
             localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
             localStorage.removeItem('dgp_myRole'); localStorage.removeItem('dgp_savedAt');
             gameRef.off(); chatRef.off();
             showScreen('login'); document.getElementById('my-name').value='';
             return;
+        }
+
+        // 房主升降後，本地 myRole 跟著自動修正
+        if(inPlayers && myRole!=='player'){
+            myRole='player';
+            saveMyId(myName,'player');
+        } else if(inSpectators && !inPlayers && myRole!=='spectator'){
+            myRole='spectator';
+            saveMyId(myName,'spectator');
         }
 
         const players  = localData.players  || {};
@@ -1597,8 +1662,6 @@ function startListening(){
                 document.getElementById('lobby-host-controls').style.display=isHost?'block':'none';
                 document.getElementById('lobby-waiting-msg').style.display=isHost?'none':'block';
                 document.getElementById('spectator-notice').style.display='none';
-                // 房主：渲染觀眾管理列表
-                if(isHost) renderSpectatorMgmt(spectators);
             } else {
                 // 觀眾
                 document.getElementById('lobby-host-controls').style.display='none';
