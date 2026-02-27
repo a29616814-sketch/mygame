@@ -149,44 +149,37 @@ html,body{ width:100%; height:100%; background:#0d1f15; color:white; font-family
     display:flex; flex-direction:column; align-items:center; gap:4px;
     z-index:10; pointer-events:none;
 }
-/* ════ 籌碼堆池顯示 ════ */
+/* ════ 籌碼散落顯示 ════ */
 #pool-display{
-    display:flex; flex-direction:column; align-items:center; gap:2px;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
     pointer-events:none;
 }
+/* 散落容器：固定尺寸讓籌碼在裡面自由飛 */
 #pool-chip-stack{
     position:relative;
-    display:flex; flex-direction:row; align-items:flex-end; justify-content:center;
-    gap:3px; min-height:52px; min-width:40px;
+    width:130px; height:56px;   /* 寬矮的矩形區，模擬桌面彩池區域 */
+    flex-shrink:0;
 }
-/* 每一根籌碼柱 */
-.chip-col{
-    display:flex; flex-direction:column-reverse; align-items:center;
-    position:relative;
-}
-/* 單枚籌碼 SVG wrapper */
+/* 每枚籌碼 — position:absolute，座標由 JS 亂數給 */
 .chip-coin{
-    display:block; margin-top:-10px; /* 疊高時重疊 */
-    position:relative;
-    filter:drop-shadow(0 2px 3px rgba(0,0,0,0.55));
-    transition:transform 0.3s ease;
+    position:absolute;
+    filter:drop-shadow(0 3px 5px rgba(0,0,0,0.65));
+    transform-origin:center center;
+    /* 進場：從上方掉落 + 彈跳 */
+    animation:chipScatter 0.38s cubic-bezier(0.22,1,0.36,1) both;
 }
-.chip-coin:first-child{ margin-top:0; }
-/* 彈跳進場動畫 */
-@keyframes chipDrop{
-    0%{ transform:translateY(-30px) scale(0.7); opacity:0; }
-    60%{ transform:translateY(3px) scale(1.04); opacity:1; }
-    80%{ transform:translateY(-2px) scale(0.98); }
-    100%{ transform:translateY(0) scale(1); opacity:1; }
+@keyframes chipScatter{
+    0%  { opacity:0; transform:var(--chip-rot) translateY(-28px) scale(0.6); }
+    55% { opacity:1; transform:var(--chip-rot) translateY(4px)  scale(1.06); }
+    78% { transform:var(--chip-rot) translateY(-2px) scale(0.97); }
+    100%{ opacity:1; transform:var(--chip-rot) translateY(0)    scale(1);    }
 }
-.chip-coin.drop{ animation:chipDrop 0.32s cubic-bezier(0.22,1,0.36,1) both; }
 /* 金額文字 */
 #pool-amount-text{
-    font-size:clamp(11px,2.2vmin,16px); color:#f1c40f; font-weight:bold;
+    font-size:clamp(11px,2.2vmin,15px); color:#f1c40f; font-weight:bold;
     text-shadow:0 1px 6px rgba(0,0,0,0.9), 0 0 12px rgba(241,196,15,0.4);
-    letter-spacing:0.5px; margin-top:2px;
+    letter-spacing:0.5px;
 }
-/* pool-pop 仍作用在文字上 */
 @keyframes poolPop{ 0%{transform:scale(1);} 40%{transform:scale(1.22);color:#fff;} 100%{transform:scale(1);} }
 .pool-pop{ animation:poolPop 0.4s ease-out; }
 #status-msg{ font-size:clamp(8px,1.7vmin,12px); color:#ccc; min-height:14px; }
@@ -1033,7 +1026,29 @@ function playSfx(id){
     if(p && p.catch) p.catch(()=>{});
 }
 
-// ══ iOS All-In 影片：在 confirmAllIn 手勢當下就 play()，顯示 overlay ══
+/* ════ ALL IN 音效：獨立解鎖機制 ════
+   問題根源：unlockAudio() 只跑一次，sfx-allin-mp3 不保證在那之前存在；
+   且 createMediaElementSource(bgm) 佔用了 AudioContext，其他 audio
+   在 iOS 上若沒在手勢 call stack 內 play() 過就無法播。
+   解法：每次 setAllIn 手勢當下立刻對 sfx-allin-mp3 做一次「靜音 play→pause」解鎖，
+   然後 confirmAllIn 時再 play（此時 iOS 已允許）。
+════ */
+let _allinMp3Unlocked = false;
+
+function unlockAllinMp3(){
+    const mp3 = document.getElementById('sfx-allin-mp3');
+    if(!mp3 || _allinMp3Unlocked) return;
+    // 在手勢 call stack 內：靜音播→暫停，讓 iOS 解鎖這個 audio element
+    const prev = mp3.volume;
+    mp3.volume = 0;
+    const p = mp3.play();
+    if(p && p.then){
+        p.then(()=>{ mp3.pause(); mp3.currentTime=0; mp3.volume=1; _allinMp3Unlocked=true; })
+         .catch(()=>{ mp3.volume=prev; });
+    } else {
+        mp3.pause(); mp3.currentTime=0; mp3.volume=1; _allinMp3Unlocked=true;
+    }
+}
 let _allinVideoReady = false;
 function prepareAllinVideo(){
     // 在用戶手勢內預先 play()→pause()，讓 iOS 允許後續自動播放
@@ -1410,7 +1425,7 @@ function startListening(){
             }
         }
 
-        // ALL IN 影片
+        // ALL IN 影片 + 音效
         if(localData.allInTrigger&&localData.allInTrigger!==lastEffectId){
             lastEffectId=localData.allInTrigger;
             const vid = document.getElementById('allin-video');
@@ -1422,8 +1437,11 @@ function startListening(){
             if(vid){ vid.style.display='block'; }
             document.getElementById('all-in-overlay').style.display='flex';
             bgmDuck(true);
-            // 若是自己觸發（confirmAllIn 已播），只需顯示即可
-            // 若是其他人觸發（其他玩家 all in），則靜音播放
+            // 播放 mp3（自己觸發時 confirmAllIn 已播，但再播一次不影響；
+            //          其他人觸發時這裡負責出聲）
+            const mp3 = document.getElementById('sfx-allin-mp3');
+            if(mp3){ mp3.currentTime=0; mp3.volume=1; mp3.play().catch(()=>{}); }
+            // 影片靜音播（mp3 出聲）
             if(vid && vid.paused){
                 vid.currentTime=0; vid.muted=true;
                 vid.play().catch(()=>{});
@@ -1431,6 +1449,7 @@ function startListening(){
             setTimeout(()=>{
                 document.getElementById('all-in-overlay').style.display='none';
                 bgmDuck(false);
+                if(mp3){ mp3.pause(); mp3.currentTime=0; }
                 if(vid){ vid.pause(); vid.currentTime=0; vid.style.display='none'; }
                 // 把 video 移回 body 備用
                 document.body.appendChild(vid);
@@ -1735,6 +1754,19 @@ function darken(hex, pct){
 }
 
 let _lastPoolRendered = -1;
+
+/* ──────────────────────────────────────────
+   seededRand：用金額當種子產生固定亂數，
+   這樣同一個金額每次刷新位置不會抖動
+────────────────────────────────────────── */
+function seededRand(seed){
+    let s = seed;
+    return function(){
+        s = (s * 1664525 + 1013904223) & 0xffffffff;
+        return (s >>> 0) / 0xffffffff;
+    };
+}
+
 function renderPoolChips(amount){
     if(amount === _lastPoolRendered) return;
     _lastPoolRendered = amount;
@@ -1743,7 +1775,7 @@ function renderPoolChips(amount){
     const textEl    = document.getElementById('pool-amount-text');
     if(!container) return;
 
-    // 更新文字（金額）
+    /* 更新金額文字 */
     if(textEl){
         textEl.innerText = `💰 $${amount.toLocaleString()}`;
         textEl.classList.remove('pool-pop');
@@ -1752,29 +1784,67 @@ function renderPoolChips(amount){
         setTimeout(()=>textEl.classList.remove('pool-pop'), 500);
     }
 
-    if(amount <= 0){ container.innerHTML = ''; return; }
-
-    const chips = breakdownChips(amount);
     container.innerHTML = '';
+    if(amount <= 0) return;
 
-    // 動態籌碼大小（根據柱數調整）
-    const totalCols = chips.length;
-    const chipSize = totalCols > 4 ? 32 : totalCols > 3 ? 35 : 38;
-    const overlap  = Math.round(chipSize * 0.28); // 疊高重疊量
+    /* ── 1. 決定要顯示哪些籌碼（最多顯示 20 枚，太多就精簡） ── */
+    const chips = breakdownChips(amount);   // [{...chip, count}, ...]
+    // 展平成一個陣列，count > 6 的面值最多顯示6枚（避免滿坑滿谷）
+    const flat = [];
+    chips.forEach(chip => {
+        const show = Math.min(chip.count, 6);
+        for(let i=0; i<show; i++) flat.push(chip);
+    });
+    // 最多 22 枚，再多截斷
+    if(flat.length > 22) flat.length = 22;
 
-    chips.forEach((chip, ci) => {
-        const col = document.createElement('div');
-        col.className = 'chip-col';
+    /* ── 2. 容器尺寸（響應式） ── */
+    const W = 130, H = 56;          // 配合 CSS 裡的 130x56
+    const chipSize = flat.length > 14 ? 28 : flat.length > 9 ? 31 : 34;
+    const half = chipSize / 2;
 
-        for(let i = 0; i < chip.count; i++){
-            const el = document.createElement('div');
-            el.className = 'chip-coin drop';
-            el.style.marginTop = i === 0 ? '0' : `-${overlap}px`;
-            el.style.animationDelay = `${(ci * chip.count + i) * 28}ms`;
-            el.innerHTML = makeChipSVG(chip, chipSize);
-            col.appendChild(el);
+    /* ── 3. 用「seeded + 排斥力」散落，讓它自然但不重疊太嚴重 ── */
+    const rand = seededRand(amount);  // 金額當種子 → 同金額位置固定
+    const placed = [];                // 已放好的座標
+
+    flat.forEach((chip, idx) => {
+        // 嘗試最多 30 次找一個「不太擠」的位置
+        let bestX = rand() * (W - chipSize) + half;
+        let bestY = rand() * (H - chipSize) + half;
+        let bestScore = -Infinity;
+
+        for(let attempt = 0; attempt < 30; attempt++){
+            const cx = rand() * (W - chipSize*0.6) + chipSize*0.3;
+            const cy = rand() * (H - chipSize*0.6) + chipSize*0.3;
+            // 評分：距離所有已放籌碼越遠越好（但不超過容器邊界太多）
+            let minDist = Infinity;
+            placed.forEach(p => {
+                const d = Math.hypot(cx - p.x, cy - p.y);
+                if(d < minDist) minDist = d;
+            });
+            const score = placed.length === 0 ? 999 : minDist;
+            if(score > bestScore){ bestScore = score; bestX = cx; bestY = cy; }
         }
-        container.appendChild(col);
+        placed.push({ x: bestX, y: bestY });
+
+        /* 隨機旋轉 ±35° */
+        const rotDeg = (rand() - 0.5) * 70;
+        const delay  = idx * 35;
+
+        const el = document.createElement('div');
+        el.className = 'chip-coin';
+        // CSS 自訂屬性讓 @keyframes 讀到旋轉值（保持動畫中旋轉一致）
+        el.style.cssText = `
+            left:${(bestX - half).toFixed(1)}px;
+            top:${(bestY  - half).toFixed(1)}px;
+            width:${chipSize}px; height:${chipSize}px;
+            z-index:${idx};
+            --chip-rot:rotate(${rotDeg.toFixed(1)}deg);
+            transform:rotate(${rotDeg.toFixed(1)}deg);
+            animation-delay:${delay}ms;
+        `;
+        el.innerHTML = makeChipSVG(chip, chipSize);
+        container.appendChild(el);
     });
 }
 
@@ -1989,6 +2059,7 @@ function spawnConfetti(count){
 function addBet(v){ let cur=parseInt(document.getElementById('bet-amount').value)||0; document.getElementById('bet-amount').value=Math.min(cur+v,localData.pool); }
 function setAllIn(){
     unlockAudio();
+    unlockAllinMp3();   // ← iOS：在同一手勢內解鎖 mp3
     // iOS: 在按鈕手勢時預先讓 video load+解鎖
     const vid = document.getElementById('allin-video');
     if(vid && !_allinVideoReady){ vid.load(); }
@@ -1998,23 +2069,39 @@ function setAllIn(){
 function cancelAllIn(){ document.getElementById('all-in-confirm-overlay').classList.remove('show'); }
 function confirmAllIn(){
     unlockAudio();
-    // 播放 allin.mp3（從根目錄）
+    /* ── ALL IN MP3 播放（三層保險）──
+       1. 直接 play()（已解鎖時直接成功）
+       2. catch → 再解鎖一次再 play（Android / 某些瀏覽器）
+       3. 仍失敗 → 靜默略過（至少影片還在） */
     const mp3 = document.getElementById('sfx-allin-mp3');
-    if(mp3){ mp3.currentTime=0; mp3.play().catch(()=>{}); }
-    // iOS 關鍵：在手勢的同一 call stack 內立刻 play video
+    if(mp3){
+        mp3.currentTime = 0;
+        mp3.volume = 1;
+        const tryPlay = () => {
+            const p = mp3.play();
+            if(p && p.catch){
+                p.catch(()=>{
+                    // 再解鎖一次（若還沒解鎖）
+                    const p2 = mp3.play();
+                    if(p2 && p2.catch) p2.catch(()=>{});
+                });
+            }
+        };
+        tryPlay();
+    }
+    // iOS 關鍵：在手勢的同一 call stack 內立刻 play video（靜音）
     const vid = document.getElementById('allin-video');
     if(vid){
         vid.currentTime = 0;
-        vid.muted = true; // 影片靜音，聲音靠 mp3
+        vid.muted = true;   // 影片靜音，聲音靠 mp3
         const vp = vid.play();
-        if(vp && vp.catch) vp.catch(()=>{ vid.muted=true; vid.play().catch(()=>{}); });
+        if(vp && vp.catch) vp.catch(()=>{});
         vid.style.display = 'block';
-        // 把 video 移到 video-box 容器內
         document.getElementById('video-box').appendChild(vid);
     }
     document.getElementById('all-in-confirm-overlay').classList.remove('show');
     gameRef.update({allInTrigger:getServerNow().toString()});
-    document.getElementById('bet-amount').value=localData.pool;
+    document.getElementById('bet-amount').value = localData.pool;
 }
 function hostResetToLobby(){ if(confirm('重製大廳狀態?')) gameRef.update({gameStarted:false}); }
 /* ════ 真實洗牌（Riffle Shuffle 模擬）+ 切牌 ════
@@ -2183,4 +2270,4 @@ function drawGoalPost(){
 }
 </script>
 </body>
-</html>
+    </html>
