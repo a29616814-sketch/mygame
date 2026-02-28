@@ -236,7 +236,6 @@ html,body{ width:100%; height:100%; background:#0d1f15; color:white; font-family
 .seat-box.is-me{ border-color:#3498db; }
 .seat-box.active.is-me{ border-color:var(--gold); }
 .seat-box.kicked{ border-color:#e74c3c; background:rgba(231,76,60,0.12); opacity:0.6; }
-.seat-box.disconnected{ border-color:#e67e22; background:rgba(230,126,34,0.1); opacity:0.7; }
 .seat-name{ font-weight:bold; font-size:clamp(11px,2.2vmin,16px); }
 .seat-bal{ color:#2ecc71; font-size:clamp(10px,1.9vmin,14px); font-weight:bold; }
 .seat-tmr{ color:#ff7675; font-size:clamp(9px,1.6vmin,12px); }
@@ -603,15 +602,16 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
   </div>
 </div>
 
-<!-- ══ 提議重新開始橫幅（非房主發起，房主確認/否決） ══ -->
+<!-- ══ 提議重置橫幅 ══ -->
 <div id="reset-proposal-bar">
-    <div class="rp-msg" id="rp-msg">⚠️ 有人提議重新開始</div>
-    <div class="rp-timer">倒數 <span id="rp-countdown">20</span> 秒，房主未回應將自動同意</div>
+    <div class="rp-msg" id="rp-msg">⚠️ 有人提議重置房間回大廳</div>
+    <div class="rp-timer">倒數 <span id="rp-countdown">20</span> 秒，房主未否決將自動同意</div>
     <div class="rp-btns">
-        <button id="rp-confirm-btn" onclick="hostConfirmReset()" style="display:none;">✅ 同意</button>
-        <button id="rp-veto-btn" onclick="vetoReset()" style="display:none;">✋ 否決</button>
+        <button id="rp-veto-btn" onclick="vetoReset()" style="display:none;">✋ 否決（房主）</button>
+        <button id="rp-now-btn" onclick="executeReset()">🔄 立即重置</button>
     </div>
 </div>
+<!-- 提議重置按鈕已整合到大廳和遊戲工具列中 -->
 
 <canvas id="shot-canvas"></canvas>
 <div id="emoji-broadcast-area"></div>
@@ -731,7 +731,7 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
             <!-- 非房主等待訊息 + 提議重置 -->
             <div id="lobby-waiting-msg" style="display:none;flex-direction:column;gap:6px;padding:8px 12px;">
                 <span style="color:#888;font-size:0.85rem;">⏳ 等待房主開始遊戲</span>
-                <button id="lobby-propose-reset-btn" onclick="proposeReset()" style="display:none;align-self:flex-start;background:rgba(192,57,43,0.65);color:white;border:1px solid rgba(192,57,43,0.8);border-radius:12px;padding:4px 12px;font-size:0.76rem;cursor:pointer;">🔄 提議重新開始</button>
+                <button id="lobby-propose-reset-btn" onclick="proposeReset()" style="display:none;align-self:flex-start;background:rgba(192,57,43,0.65);color:white;border:1px solid rgba(192,57,43,0.8);border-radius:12px;padding:4px 12px;font-size:0.76rem;cursor:pointer;">🔄 提議重置</button>
             </div>
         </div>
     </div>
@@ -909,8 +909,8 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
             <!-- 工具列 -->
             <div id="tools">
                 <button class="tool-btn leave" onclick="leaveRoom()">🚪 離開</button>
-                <button class="tool-btn" id="host-reset-btn" onclick="hostResetToLobby()" style="display:none;">🏠 重新開房</button>
-                <button class="tool-btn" id="propose-reset-btn" onclick="proposeReset()" style="display:none;">🔄 提議重新開始</button>
+                <button class="tool-btn" id="host-reset-btn" onclick="hostResetToLobby()" style="display:none;">🚨 重製</button>
+                <button class="tool-btn" id="propose-reset-btn" onclick="proposeReset()" style="display:none;">🔄 提議重置</button>
                 <button class="tool-btn" id="host-spec-btn" onclick="toggleSpecMgmtGame()" style="display:none;">👁 觀眾管理</button>
             </div>
             <!-- 遊戲中觀眾管理浮層（房主專用） -->
@@ -950,8 +950,7 @@ let serverOffset=0, wasMyturn=false, emojiBarOpen=false;
 let gameChatOpen=false, chatUnreadCount=0;
 let lastChatTime=0;
 const labels={1:'A',11:'J',12:'Q',13:'K'};
-// RECONNECT_WINDOW: 30秒內斷線可重連繼承；KICK_GRACE: 標記踢出後等待移除時間
-const RECONNECT_WINDOW=30*1000, KICK_GRACE=10*1000;
+const RECONNECT_WINDOW=60*1000, KICK_GRACE=10*1000;
 
 db.ref('.info/serverTimeOffset').on('value', s => serverOffset=s.val());
 function getServerNow(){ return Date.now()+serverOffset; }
@@ -1301,21 +1300,19 @@ function renderSeats(){
         }
 
         const crown=isHost?' 👑':'';
-        const isDisconnected=!!(p.disconnectedAt && !p.kickedAt);
         let tmr='';
-        if(isKicked){
-            tmr=`<div class="seat-tmr" style="color:#e74c3c;">🚫 踢除中</div>`;
-        } else if(isDisconnected){
-            const discSec=Math.floor((getServerNow()-(p.disconnectedAt||0))/1000);
-            const remain=Math.max(0,15-discSec);
-            tmr=`<div class="seat-tmr" style="color:#e67e22;">📶 斷線 ${remain>0?remain+'s後剔除':'剔除中...'}</div>`;
-        } else if(isActive&&localData.lastActionTime){
+        if(isActive&&localData.lastActionTime&&!isKicked){
             const sec=Math.max(0,60-Math.floor((getServerNow()-localData.lastActionTime)/1000));
             const pct=Math.round(sec/60*100);
             const warnCls=sec<15?'warn':'';
             tmr=`<div class="seat-tmr">⏱${sec}s</div><div class="seat-timer-bar-wrap"><div class="seat-timer-bar ${warnCls}" style="width:${pct}%"></div></div>`;
         }
-        const boxCls=['seat-box',isActive&&!isKicked&&!isDisconnected?'active':'',isMe?'is-me':'',isKicked?'kicked':'',isDisconnected?'disconnected':''].filter(Boolean).join(' ');
+        if(isKicked){
+            const remain=Math.max(0,Math.ceil((p.kickedAt+KICK_GRACE-getServerNow())/1000));
+            tmr=`<div class="seat-tmr">🚫 ${remain}s後移除</div>`;
+        }
+
+        const boxCls=['seat-box',isActive&&!isKicked?'active':'',isMe?'is-me':'',isKicked?'kicked':''].filter(Boolean).join(' ');
         const node=document.createElement('div');
         node.className='seat'+(isMe?' is-me':'');
         node.style.left=cx+'%'; node.style.top=cy+'%';
@@ -1521,19 +1518,25 @@ function joinRoom(){
             const pData=pSnap.val(), sData=sSnap.val();
 
             if(pData && !pData.kickedAt){
-                // ✅ 玩家存在且未被踢 → 重連繼承
+                // ✅ 在玩家清單中，且未被標記踢出 → 玩家身份重連
                 myId=savedId; myRole='player'; saveMyId(name,'player');
                 lastChatTime=getServerNow(); window._joinedAt=Date.now();
+                // 更新 lastActive，確保清除任何 kickedAt 標記
                 gameRef.child('players/'+myId).update({
                     lastActive: firebase.database.ServerValue.TIMESTAMP,
-                    kickedAt: null, disconnectedAt: null
+                    kickedAt: null
                 });
                 showReconnectToast('🔄 重連成功',2000);
                 startListening(); startChatListener();
 
             } else if(pData && pData.kickedAt){
-                // 已被踢除 → 不重連，全新進入
-                createNewEntry(name);
+                // ⏳ 被踢中（KICK_GRACE 期間），等移除後再重新加入
+                showReconnectToast('⏳ 等待座位釋放...');
+                const chk=setInterval(()=>{
+                    gameRef.child('players/'+savedId).once('value',s2=>{
+                        if(!s2.val()){ clearInterval(chk); hideReconnectToast(); createNewEntry(name); }
+                    });
+                },1000);
 
             } else if(sData){
                 // ✅ 在觀眾清單中 → 觀眾身份重連
@@ -1559,7 +1562,7 @@ function createNewEntry(name){
         const players=data.players||{};
         const now=getServerNow();
 
-        // 計算有效活躍玩家（過濾殭屍）
+        // 計算有效活躍玩家
         const activePlayers=Object.keys(players).filter(id=>{
             const p=players[id];
             if(p.kickedAt) return false;
@@ -1567,10 +1570,10 @@ function createNewEntry(name){
             return true;
         });
 
-        // 非同步清理殭屍（不阻塞加入流程）
+        // 背景清理殭屍（不阻塞加入流程）
         Object.keys(players).forEach(id=>{
             const p=players[id];
-            if(p.kickedAt || (!p.lastActive||now-p.lastActive>70000))
+            if(p.kickedAt || !p.lastActive || now-p.lastActive>70000)
                 gameRef.child('players/'+id).remove();
         });
 
@@ -1578,24 +1581,25 @@ function createNewEntry(name){
         const shouldJoinAsPlayer=!data.gameStarted||roomEmpty;
 
         if(shouldJoinAsPlayer){
-            // 玩家身份：用 set 原子寫入，確認寫完才 startListening
+            // 玩家身份：multi-path update 一次原子寫入（單一 roundtrip）
             const newRef=gameRef.child('players').push();
             myId=newRef.key; myRole='player'; saveMyId(name,'player');
 
-            // 同時重置房間狀態 + 寫入自己（multi-path update，一個 roundtrip）
             const updates={
                 gameStarted:false, c1:null, c2:null, c3:null,
                 currentPlayerKey:null, deck:null, statusMsg:null,
                 gameOverSignal:null, gameOverRankings:null, gameOverLastCards:null,
-                [`players/${myId}/name`]:name,
-                [`players/${myId}/balance`]:0,
-                [`players/${myId}/joinedAt`]:firebase.database.ServerValue.TIMESTAMP,
-                [`players/${myId}/lastActive`]:firebase.database.ServerValue.TIMESTAMP
+                resetProposal:null
             };
             if(roomEmpty) updates.spectators=null;
+            // 直接把自己寫進 players 節點（不拆兩步）
+            updates['players/'+myId+'/name']=name;
+            updates['players/'+myId+'/balance']=0;
+            updates['players/'+myId+'/joinedAt']=firebase.database.ServerValue.TIMESTAMP;
+            updates['players/'+myId+'/lastActive']=firebase.database.ServerValue.TIMESTAMP;
 
             gameRef.update(updates).then(()=>{
-                // 資料確認寫入後才設 _joinedAt 和啟動監聽
+                // 確認寫入後才啟動監聽，避免 _notFoundTimer 誤觸發
                 window._joinedAt=Date.now();
                 chatRef.push({uid:'system',text:`${name} 進入大廳`,time:firebase.database.ServerValue.TIMESTAMP});
                 if(data.allInTrigger) lastEffectId=data.allInTrigger;
@@ -1608,7 +1612,6 @@ function createNewEntry(name){
             // 觀眾身份
             const newRef=gameRef.child('spectators').push();
             myId=newRef.key; myRole='spectator'; saveMyId(name,'spectator');
-
             gameRef.child('spectators/'+myId).set({
                 name, lastActive:firebase.database.ServerValue.TIMESTAMP
             }).then(()=>{
@@ -1631,27 +1634,14 @@ function saveMyId(name, role){
     localStorage.setItem('dgp_savedAt',Date.now().toString());
 }
 
-/* ════ 離開 ════ */
-
-// 清空 localStorage，斷監聽，回暱稱頁（保留暱稱讓用戶重打）
-function _toLoginPage(){
-    if(window._notFoundTimer){ clearTimeout(window._notFoundTimer); window._notFoundTimer=null; }
-    const name=myName;
-    _chatListening=false; _gameListening=false;
-    gameRef.off(); chatRef.off();
-    myId=''; myName=''; myRole='player';
-    localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
-    localStorage.removeItem('dgp_myRole'); localStorage.removeItem('dgp_savedAt');
-    showScreen('login');
-    document.getElementById('my-name').value=name; // 保留暱稱方便重打
-}
-
+/* ════ 離開房間 ════ */
 function leaveRoom(){
     if(!confirm('確定離開房間?')) return;
     doLeave();
 }
 function doLeave(){
     if(!myId) return;
+
     if(myRole==='spectator'){
         chatRef.push({uid:'system',text:`${myName} 離開了房間`,time:firebase.database.ServerValue.TIMESTAMP});
         gameRef.child('spectators/'+myId).remove();
@@ -1660,37 +1650,36 @@ function doLeave(){
         const allKeys=Object.keys(players);
         const wasActive=localData.currentPlayerKey===myId;
         const remaining=allKeys.filter(k=>k!==myId&&!players[k].kickedAt);
+
+        // 用 multi-path update 原子刪除自己，同時處理後續狀態
+        // 這樣即使 gameRef.off() 之後還是能送出去
         const updates={};
-        updates[`players/${myId}`]=null;
+        updates[`players/${myId}`]=null;  // 直接刪除自己
+
         if(remaining.length===0){
-            updates.gameStarted=false; updates.c1=null; updates.c2=null; updates.c3=null;
-            updates.currentPlayerKey=null; updates.spectators=null;
+            updates.gameStarted=false;
+            updates.c1=null; updates.c2=null; updates.c3=null;
+            updates.currentPlayerKey=null;
+            updates.spectators=null;
         } else if(wasActive){
             updates.gameState='waiting_deal';
             updates.currentPlayerKey=remaining[0];
             updates.lastActionTime=firebase.database.ServerValue.TIMESTAMP;
         }
+
+        // 先 push 離開訊息，然後原子 update（不等 then，直接斷線也沒關係）
         chatRef.push({uid:'system',text:`${myName} 離開了房間`,time:firebase.database.ServerValue.TIMESTAMP});
         gameRef.update(updates);
     }
-    _toLoginPage();
-}
 
-/* ════ 踢玩家 ════ */
-function kickPlayer(id){
-    if(!confirm('確定踢除？踢出後直接刪除資料，無法重連。')) return;
-    const players=localData.players||{};
-    const name=players[id]?.name||'玩家';
-    const active=Object.keys(players).filter(k=>k!==id&&!players[k].kickedAt);
-    // 直接刪除（不走 kickedAt 流程），_notFoundTimer 會讓他回暱稱頁
-    const updates={[`players/${id}`]:null};
-    if(localData.currentPlayerKey===id){
-        updates.gameState='waiting_deal';
-        updates.currentPlayerKey=active[0]||null;
-        updates.lastActionTime=firebase.database.ServerValue.TIMESTAMP;
-    }
-    gameRef.update(updates);
-    chatRef.push({uid:'system',text:`🚫 ${name} 被踢出房間`,time:firebase.database.ServerValue.TIMESTAMP});
+    const leavingName=myName;
+    localStorage.removeItem('dgp_myId'); localStorage.removeItem('dgp_myName');
+    localStorage.removeItem('dgp_myRole'); localStorage.removeItem('dgp_savedAt');
+    myId=''; myName=''; myRole='player';
+    _chatListening=false; _gameListening=false;
+    gameRef.off(); chatRef.off();
+    showScreen('login');
+    document.getElementById('my-name').value=leavingName; // 保留暱稱，快速重新加入
 }
 
 /* ════ 主監聽 ════ */
@@ -1714,8 +1703,17 @@ function startListening(){
                     const stillInP=!!(localData.players   && localData.players[myId]);
                     const stillInS=!!(localData.spectators && localData.spectators[myId]);
                     if(!stillInP && !stillInS){
-                        // 資料消失（被踢/超時剔除/重新開始）→ 清空，回暱稱頁
-                        _toLoginPage();
+                        // 被踢出/超時剔除/提議重置清空 → 清掉 localStorage，回暱稱頁
+                        const savedName=myName;
+                        _chatListening=false; _gameListening=false;
+                        gameRef.off(); chatRef.off();
+                        myId=''; myName=''; myRole='player';
+                        localStorage.removeItem('dgp_myId');
+                        localStorage.removeItem('dgp_myName');
+                        localStorage.removeItem('dgp_myRole');
+                        localStorage.removeItem('dgp_savedAt');
+                        showScreen('login');
+                        document.getElementById('my-name').value=savedName;
                     }
                 }, 800);
             }
@@ -1859,12 +1857,14 @@ setInterval(()=>{
         gameRef.child('spectators/'+myId).update({lastActive:getServerNow()});
 },5000);
 
-// ── 清理 interval ──
+// 斷線判斷：15秒沒心跳 → kickedAt，KICK_GRACE（10秒）後移除
+// 任何玩家都能清理殭屍（不限房主），避免前房主卡死時無人清理
 setInterval(()=>{
     if(!localData.players||!myId||myRole!=='player') return;
     const now=getServerNow(), players=localData.players;
     const allKeys=Object.keys(players);
 
+    // 找出目前誰是「有效房主」（joinedAt 最小的活躍玩家）
     const activeSorted=allKeys
         .filter(k=>!players[k].kickedAt)
         .sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
@@ -1872,43 +1872,22 @@ setInterval(()=>{
 
     allKeys.forEach(id=>{
         const p=players[id];
-        // kickedAt + KICK_GRACE 後任何人都能移除
+        // KICK_GRACE 已過 → 任何人都可以移除（不限房主）
         if(p.kickedAt && now-p.kickedAt>=KICK_GRACE){
             gameRef.child('players/'+id).remove();
             return;
         }
-        if(id===myId) return;
-        if(!amHost) return;
-
-        // 斷線偵測：15秒無心跳 → 標記 disconnectedAt（橙色顯示）
-        if(!p.kickedAt && !p.disconnectedAt && (!p.lastActive||now-p.lastActive>15000)){
-            gameRef.child('players/'+id).update({disconnectedAt:getServerNow()});
-            chatRef.push({uid:'system',text:`📶 ${p.name} 斷線`,time:firebase.database.ServerValue.TIMESTAMP});
-        }
-        // 斷線超過 15 秒還未重連 → kickedAt 剔除（_notFoundTimer 會讓他回暱稱頁）
-        if(p.disconnectedAt && !p.kickedAt && now-p.disconnectedAt>=15000){
-            const active=allKeys.filter(k=>!players[k].kickedAt&&k!==id);
-            const updates={[`players/${id}/kickedAt`]:getServerNow()};
-            if(localData.currentPlayerKey===id){
-                updates.gameState='waiting_deal';
-                updates.currentPlayerKey=active[0]||null;
-                updates.lastActionTime=firebase.database.ServerValue.TIMESTAMP;
-                updates.statusMsg=`${p.name} 斷線已剔除`;
-            }
-            gameRef.update(updates);
-            chatRef.push({uid:'system',text:`🚫 ${p.name} 斷線超時，已剔除`,time:firebase.database.ServerValue.TIMESTAMP});
-        }
-        // 重連回來了 → 清除 disconnectedAt
-        if(p.disconnectedAt && p.lastActive && p.lastActive>p.disconnectedAt){
-            gameRef.child('players/'+id).update({disconnectedAt:null});
+        // 超過 15 秒沒心跳 → 標記 kickedAt（只有房主做，避免重複寫）
+        if(amHost && !p.kickedAt && id!==myId && (!p.lastActive||now-p.lastActive>15000)){
+            gameRef.child('players/'+id).update({kickedAt:getServerNow()});
         }
     });
 
-    if(!amHost) return;
+    if(!amHost) return; // 以下清理邏輯只有房主執行
 
-    // ── gameOver 15秒後自動重置 ──
+    // ── gameOver 15秒後自動重置回大廳（房主執行） ──
     if(localData.gameOverAt && localData.gameStarted){
-        if(now-localData.gameOverAt>=15000){
+        if(now - localData.gameOverAt >= 15000){
             gameRef.update({
                 gameStarted:false, c1:null, c2:null, c3:null,
                 currentPlayerKey:null, gameOverSignal:null,
@@ -1919,36 +1898,43 @@ setInterval(()=>{
 
     if(localData.gameStarted){
         const cpKey=localData.currentPlayerKey;
-        // 當前玩家被踢 → 跳過換人
         if(cpKey&&players[cpKey]&&players[cpKey].kickedAt){
             const active=allKeys.filter(k=>!players[k].kickedAt);
-            const nextK=active[(active.indexOf(cpKey)+1)%active.length]||active[0]||null;
+            const ci=active.indexOf(cpKey);
+            const nextK=active[(ci+1)%active.length]||active[0]||null;
             gameRef.update({gameState:'waiting_deal',currentPlayerKey:nextK,
-                lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'玩家已移出，換人'});
+                lastActionTime:firebase.database.ServerValue.TIMESTAMP,statusMsg:'玩家超時,移出座位'});
         }
-        // 60秒超時 → 自動棄牌（扣罰金），換下一家
-        if(localData.lastActionTime && cpKey && players[cpKey] && !players[cpKey].kickedAt){
+        if(localData.lastActionTime){
             const diff=(now-localData.lastActionTime)/1000;
-            if(diff>60.5){
-                const p2=players[cpKey];
-                const foldPen=localData.foldPenalty||0;
-                const active=allKeys.filter(k=>!players[k].kickedAt&&k!==cpKey);
-                const updates={
-                    [`players/${cpKey}/balance`]:(p2.balance||0)-foldPen,
-                    [`players/${cpKey}/disconnectedAt`]:getServerNow(), // 標記斷線狀態
-                    pool:(localData.pool||0)+foldPen,
-                    gameState:'waiting_deal',
-                    currentPlayerKey:active[0]||null,
-                    lastActionTime:firebase.database.ServerValue.TIMESTAMP,
-                    statusMsg:`${p2.name} 超時自動棄牌(-$${foldPen})`
-                };
-                gameRef.update(updates);
-                chatRef.push({uid:'system',text:`⏰ ${p2.name} 超時自動棄牌(-$${foldPen})`,time:firebase.database.ServerValue.TIMESTAMP});
+            const cpKey2=localData.currentPlayerKey;
+            if(diff>60.5&&cpKey2&&players[cpKey2]&&!players[cpKey2].kickedAt){
+                gameRef.child('players/'+cpKey2).update({kickedAt:getServerNow()}).then(()=>{
+                    const active=allKeys.filter(k=>!players[k].kickedAt&&k!==cpKey2);
+                    gameRef.update({gameState:'waiting_deal',currentPlayerKey:active[0]||null,
+                        statusMsg:'玩家超時,移出座位',lastActionTime:firebase.database.ServerValue.TIMESTAMP});
+                });
             }
         }
     }
     renderSeats();
 },1000);
+
+/* ════ 踢玩家 ════ */
+function kickPlayer(id){
+    if(!confirm('剔除該玩家?(10秒後移除,期間可重連)')) return;
+    const players=localData.players||{};
+    const active=Object.keys(players).filter(k=>k!==id&&!players[k].kickedAt);
+    const updates={};
+    updates[`players/${id}/kickedAt`]=getServerNow();
+    if(localData.currentPlayerKey===id){
+        updates.gameState='waiting_deal';
+        updates.currentPlayerKey=active[0]||null;
+        updates.lastActionTime=firebase.database.ServerValue.TIMESTAMP;
+    }
+    gameRef.update(updates);
+    chatRef.push({uid:'system',text:`${players[id]?.name||'玩家'} 被踢出房間`,time:firebase.database.ServerValue.TIMESTAMP});
+}
 
 /* ════ 開局 ════ */
 function hostStartGame(){
@@ -2574,6 +2560,182 @@ function showAllinGif(){
 function hideAllinGif(){
     const gif = document.getElementById('allin-gif');
     if(gif){ gif.src=''; gif.style.display='none'; }
+}
+function hostResetToLobby(){
+    if(!confirm('重新開房？遊戲資料清空，所有人回到大廳。')) return;
+    // 只清遊戲狀態，保留 players 讓大家停在大廳，不回暱稱頁
+    const players=localData.players||{};
+    const updates={
+        gameStarted:false, c1:null, c2:null, c3:null,
+        currentPlayerKey:null, deck:null, statusMsg:null, pool:null,
+        gameState:null, lastActionTime:null, foldPenalty:null,
+        gameOverSignal:null, gameOverRankings:null, gameOverLastCards:null, gameOverAt:null,
+        resetProposal:null
+    };
+    // 清除所有玩家的 ready 狀態，讓大家重新準備
+    Object.keys(players).forEach(id=>{
+        if(players[id] && !players[id].kickedAt){
+            updates['players/'+id+'/ready']=false;
+            updates['players/'+id+'/balance']=0;
+        }
+    });
+    gameRef.update(updates);
+    chatRef.push({uid:'system',text:'🏠 房主重新開房，大家回到大廳',time:firebase.database.ServerValue.TIMESTAMP});
+}
+
+/* ════ 提議重置系統 ════ */
+let _rpTimer=null;
+
+/* ════ 提議重置（含30秒冷卻）════ */
+let _lastProposedAt=0;
+const PROPOSE_COOLDOWN=30000;
+
+function proposeReset(){
+    if(!myId) return;
+    const now=Date.now();
+    if(now-_lastProposedAt < PROPOSE_COOLDOWN){
+        const wait=Math.ceil((PROPOSE_COOLDOWN-(now-_lastProposedAt))/1000);
+        alert(`請等 ${wait} 秒再提議`); return;
+    }
+    _lastProposedAt=now;
+    gameRef.update({
+        resetProposal:{
+            by: myName,
+            at: firebase.database.ServerValue.TIMESTAMP,
+            vetoed: false
+        }
+    });
+    chatRef.push({uid:'system',text:`🔄 ${myName} 提議重新開始（全部清空），房主可在20秒內否決`,time:firebase.database.ServerValue.TIMESTAMP});
+    // 更新按鈕冷卻顯示
+    startProposeCooldownUI();
+}
+
+function startProposeCooldownUI(){
+    const btn1=document.getElementById('lobby-propose-reset-btn');
+    const btn2=document.getElementById('propose-reset-btn');
+    let remain=PROPOSE_COOLDOWN/1000;
+    const tick=setInterval(()=>{
+        remain--;
+        const txt=remain>0?`🔄 提議重置 (${remain}s)`:'🔄 提議重置';
+        if(btn1) btn1.innerText=txt;
+        if(btn2) btn2.innerText=txt;
+        if(remain<=0){ clearInterval(tick); }
+    },1000);
+}
+
+/* ════ 準備系統 ════ */
+function toggleReady(){
+    if(!myId||myRole!=='player') return;
+    const cur=(localData.players&&localData.players[myId]&&localData.players[myId].ready)||false;
+    gameRef.child('players/'+myId).update({ready:!cur});
+}
+
+function renderReadyBar(players, isHost){
+    const bar=document.getElementById('ready-bar');
+    const row=document.getElementById('ready-status-row');
+    const myReadyBtn=document.getElementById('my-ready-btn');
+    const hint=document.getElementById('host-start-hint');
+    if(!bar||!row) return;
+
+    if(isHost){
+        bar.style.display='none';
+        // 給房主看：所有人準備好才能開始（否則顯示提示）
+        const activeP=Object.keys(players).filter(k=>!players[k].kickedAt);
+        const others=activeP.filter(k=>k!==myId);
+        const allReady=others.length>0 && others.every(k=>players[k]&&players[k].ready);
+        if(hint){
+            hint.style.display=others.length>0?'block':'none';
+            if(others.length>0){
+                const readyCount=others.filter(k=>players[k]&&players[k].ready).length;
+                hint.innerText=allReady?'✅ 所有玩家已準備，可以開始！':`⏳ ${readyCount}/${others.length} 玩家準備中...`;
+                hint.style.color=allReady?'#2ecc71':'#f39c12';
+            }
+        }
+        return;
+    }
+
+    // 非房主：顯示準備列
+    bar.style.display='flex';
+    row.innerHTML='';
+    const activeP=Object.keys(players).filter(k=>!players[k].kickedAt)
+        .sort((a,b)=>(players[a].joinedAt||0)-(players[b].joinedAt||0));
+    activeP.forEach(id=>{
+        const p=players[id]; if(!p) return;
+        const chip=document.createElement('span');
+        chip.className='ready-chip '+(p.ready?'ready':'not-ready');
+        chip.innerHTML=(p.ready?'✅ ':'⏳ ')+p.name+(id===activeP[0]?' 👑':'');
+        row.appendChild(chip);
+    });
+
+    const amReady=!!(players[myId]&&players[myId].ready);
+    if(myReadyBtn){
+        myReadyBtn.className=amReady?'ready':'not-ready';
+        myReadyBtn.innerText=amReady?'❌ 取消準備':'✅ 準備好了';
+    }
+}
+
+function vetoReset(){
+    gameRef.update({'resetProposal/vetoed':true});
+    chatRef.push({uid:'system',text:`✋ 房主否決了重置提議`,time:firebase.database.ServerValue.TIMESTAMP});
+}
+
+function executeReset(){
+    clearInterval(_rpTimer); _rpTimer=null;
+    document.getElementById('reset-proposal-bar').style.display='none';
+    chatRef.push({uid:'system',text:'🔄 提議通過，房間全部清空，請重新輸入暱稱加入',time:firebase.database.ServerValue.TIMESTAMP});
+    // 清空整個 Firebase（players/spectators=null 會讓所有人 _notFoundTimer → 回暱稱頁）
+    gameRef.update({
+        gameStarted:false, c1:null, c2:null, c3:null,
+        currentPlayerKey:null, deck:null, statusMsg:null, pool:null,
+        gameState:null, lastActionTime:null, foldPenalty:null,
+        gameOverSignal:null, gameOverRankings:null, gameOverLastCards:null, gameOverAt:null,
+        resetProposal:null, players:null, spectators:null
+    });
+    // 自己也直接走回暱稱頁（不等 _notFoundTimer，因為 Firebase 寫入有延遲）
+    const savedName=myName;
+    _chatListening=false; _gameListening=false;
+    gameRef.off(); chatRef.off();
+    myId=''; myName=''; myRole='player';
+    localStorage.removeItem('dgp_myId');
+    localStorage.removeItem('dgp_myName');
+    localStorage.removeItem('dgp_myRole');
+    localStorage.removeItem('dgp_savedAt');
+    showScreen('login');
+    document.getElementById('my-name').value=savedName;
+}
+
+function handleResetProposal(proposal, isHost){
+    const bar=document.getElementById('reset-proposal-bar');
+    if(!proposal || proposal.vetoed){
+        // 沒有提議或已被否決
+        bar.style.display='none';
+        clearInterval(_rpTimer);
+        _rpTimer=null;
+        return;
+    }
+
+    // 有提議 → 顯示橫幅
+    const proposedAt=proposal.at||Date.now();
+    bar.style.display='block';
+    document.getElementById('rp-msg').innerText=`⚠️ ${proposal.by} 提議重新開始（全部清空回暱稱頁）`;
+    document.getElementById('rp-veto-btn').style.display=isHost?'inline-block':'none';
+
+    // 如果 timer 還沒啟動才啟動（20秒）
+    if(!_rpTimer){
+        _rpTimer=setInterval(()=>{
+            const now=Date.now();
+            const remain=Math.max(0,20-Math.floor((now-proposedAt)/1000));
+            const el=document.getElementById('rp-countdown');
+            if(el) el.innerText=remain;
+            if(remain<=0){
+                clearInterval(_rpTimer); _rpTimer=null;
+                gameRef.child('resetProposal').once('value',snap=>{
+                    const rp=snap.val();
+                    if(rp&&!rp.vetoed) executeReset(); // 20秒無反應默認同意
+                });
+            }
+        },500);
+    }
 }
 /* ════ 真實洗牌（Riffle Shuffle 模擬）+ 切牌 ════
    模擬真實紙牌洗牌：以 Riffle Shuffle 為主（抽取不完美的間隔交叉），
