@@ -608,7 +608,7 @@ body.is-host .seat:not(.is-me) .seat-kick{ display:block; }
     <div class="rp-timer">倒數 <span id="rp-countdown">20</span> 秒，房主未否決將自動同意</div>
     <div class="rp-btns">
         <button id="rp-veto-btn" onclick="vetoReset()" style="display:none;">✋ 否決（房主）</button>
-        <button id="rp-now-btn" onclick="executeReset()">🔄 立即重置</button>
+        <!-- 無立即重置按鈕：由房主決定或20秒後自動同意 -->
     </div>
 </div>
 <!-- 提議重置按鈕已整合到大廳和遊戲工具列中 -->
@@ -1428,9 +1428,13 @@ function renderHostMemberMgmt(activeP, players, spectators){
 /* 房主：升觀眾為玩家（原子操作：同一個 update 同時寫入+清除，消除瞬間兩邊都沒有的問題） */
 function promoteSpectator(id, name){
     const s=(localData.spectators||{})[id]||{};
-    // 一個 update 同時：players/id 寫入 + spectators/id 設為 null（刪除）
+    // joinedAt 用 ServerValue.TIMESTAMP 讓他排在現有玩家之後，不搶房主位置
     gameRef.update({
-        [`players/${id}`]: { name, balance:0, lastActive: s.lastActive||getServerNow() },
+        [`players/${id}`]: {
+            name, balance:0,
+            lastActive: s.lastActive||getServerNow(),
+            joinedAt: firebase.database.ServerValue.TIMESTAMP
+        },
         [`spectators/${id}`]: null
     });
     chatRef.push({uid:'system',text:`🎮 ${name} 已升為玩家`,time:firebase.database.ServerValue.TIMESTAMP});
